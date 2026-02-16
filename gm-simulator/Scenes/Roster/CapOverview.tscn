@@ -1,0 +1,172 @@
+[gd_scene load_steps=2 format=3 uid="uid://cap_overview"]
+
+[ext_resource type="Script" path="res://Scripts/UI/CapOverview.cs" id="1"]
+
+[node name="CapOverview" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="ScrollContainer/MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="HeaderLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "SALARY CAP OVERVIEW"
+
+[node name="SummaryGrid" type="GridContainer" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 6
+
+[node name="CapTotalLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Salary Cap:"
+
+[node name="CapTotalValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="RolloverLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Rollover:"
+
+[node name="RolloverValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="AdjustedCapLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Adjusted Cap:"
+
+[node name="AdjustedCapValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="ActiveContractsLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Active Contracts:"
+
+[node name="ActiveContractsValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="DeadCapLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Dead Cap:"
+
+[node name="DeadCapValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="TotalCommittedLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Total Committed:"
+
+[node name="TotalCommittedValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="AvailableSpaceLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Available Space:"
+
+[node name="AvailableSpaceValue" type="Label" parent="ScrollContainer/MarginContainer/VBox/SummaryGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "--"
+
+[node name="CapUsageBar" type="ProgressBar" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 24)
+max_value = 100.0
+value = 0.0
+
+[node name="CapUsageLabel" type="Label" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "0% of cap used"
+
+[node name="HSeparator1" type="HSeparator" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="TopHitsHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "TOP CAP HITS"
+
+[node name="TopHitsList" type="VBoxContainer" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HSeparator2" type="HSeparator" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="ProjectionsHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "CAP PROJECTIONS"
+
+[node name="ProjectionsGrid" type="GridContainer" parent="ScrollContainer/MarginContainer/VBox"]
+layout_mode = 2
+columns = 4
+theme_override_constants/h_separation = 30
+theme_override_constants/v_separation = 6
+
+[node name="YearHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox/ProjectionsGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "YEAR"
+
+[node name="CapHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox/ProjectionsGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "CAP"
+
+[node name="CommittedHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox/ProjectionsGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "COMMITTED"
+
+[node name="AvailableHeader" type="Label" parent="ScrollContainer/MarginContainer/VBox/ProjectionsGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "AVAILABLE"

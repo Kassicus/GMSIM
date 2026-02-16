@@ -187,8 +187,7 @@ public class PlayerGenerator
                 player.TeamId = team.Id;
                 player.RosterStatus = RosterStatus.Active53;
 
-                // Generate contract
-                player.CurrentContract = ContractGenerator.GenerateVeteranContract(player, currentYear, rng);
+                player.CurrentContract = GenerateAppropriateContract(player, currentYear, rng);
                 player.CurrentContract.TeamId = team.Id;
 
                 players.Add(player);
@@ -205,7 +204,7 @@ public class PlayerGenerator
             var player = GeneratePlayer(pos, targetOvr, age, currentYear, rng);
             player.TeamId = team.Id;
             player.RosterStatus = RosterStatus.Active53;
-            player.CurrentContract = ContractGenerator.GenerateVeteranContract(player, currentYear, rng);
+            player.CurrentContract = GenerateAppropriateContract(player, currentYear, rng);
             player.CurrentContract.TeamId = team.Id;
             players.Add(player);
             team.PlayerIds.Add(player.Id);
@@ -227,7 +226,100 @@ public class PlayerGenerator
             }
         }
 
+        // Cap balancing: if total cap usage exceeds the salary cap, scale down veteran contracts
+        BalanceTeamCap(team, players, currentYear);
+
         return players;
+    }
+
+    private static Contract GenerateAppropriateContract(Player player, int currentYear, Random rng)
+    {
+        // Young players still on rookie/UDFA deals
+        if (player.YearsInLeague <= 3)
+        {
+            int draftRound = player.IsUndrafted ? 0 : player.DraftRound;
+            int draftPick = player.DraftPick;
+
+            // For roster generation, derive a realistic draft round from overall
+            // so that high-OVR young players have appropriately valued rookie deals
+            if (!player.IsUndrafted)
+            {
+                draftRound = player.Overall switch
+                {
+                    >= 80 => 1,
+                    >= 72 => rng.Next(1, 3),
+                    >= 65 => rng.Next(2, 5),
+                    _ => rng.Next(4, 8),
+                };
+                draftPick = rng.Next(1, 33);
+                player.DraftRound = draftRound;
+                player.DraftPick = draftPick;
+            }
+
+            // Calculate how many years into the rookie deal they are
+            int contractStartYear = currentYear - player.YearsInLeague;
+            var contract = ContractGenerator.GenerateRookieContract(
+                draftRound, draftPick, contractStartYear, player.Id, player.TeamId ?? "");
+
+            return contract;
+        }
+
+        // Low-OVR veterans get minimum salary contracts (they wouldn't command
+        // a significant deal on the open market)
+        if (player.Overall < 70)
+        {
+            return ContractGenerator.GenerateMinimumContract(
+                player.YearsInLeague, currentYear, player.Id, player.TeamId ?? "");
+        }
+
+        // Veterans 70+ OVR get market-value contracts
+        return ContractGenerator.GenerateVeteranContract(player, currentYear, rng);
+    }
+
+    private static void BalanceTeamCap(Team team, List<Player> teamPlayers, int currentYear)
+    {
+        long totalCapUsed = 0;
+        long veteranCapUsed = 0;
+
+        foreach (var player in teamPlayers)
+        {
+            if (player.CurrentContract == null) continue;
+            long hit = player.CurrentContract.GetCapHit(currentYear);
+            totalCapUsed += hit;
+            if (player.CurrentContract.Type == ContractType.Veteran)
+                veteranCapUsed += hit;
+        }
+
+        // Target ~93-97% cap usage for realistic rosters at season start
+        long capLimit = (long)(team.SalaryCap * 0.95);
+        if (totalCapUsed <= capLimit) return;
+        if (veteranCapUsed <= 0) return; // Nothing to scale
+
+        // Calculate scale factor based on veteran portion only:
+        // non-veteran cap stays fixed, veteran cap must shrink to fill the gap
+        long nonVeteranCap = totalCapUsed - veteranCapUsed;
+        long targetVeteranCap = capLimit - nonVeteranCap;
+        if (targetVeteranCap <= 0) targetVeteranCap = veteranCapUsed / 2; // extreme fallback
+
+        float scaleFactor = (float)targetVeteranCap / veteranCapUsed;
+
+        foreach (var player in teamPlayers)
+        {
+            if (player.CurrentContract == null) continue;
+            if (player.CurrentContract.Type != ContractType.Veteran) continue;
+
+            foreach (var year in player.CurrentContract.Years)
+            {
+                year.BaseSalary = (long)(year.BaseSalary * scaleFactor);
+                year.SigningBonus = (long)(year.SigningBonus * scaleFactor);
+                year.CapHit = (long)(year.CapHit * scaleFactor);
+                year.DeadCap = (long)(year.DeadCap * scaleFactor);
+                year.Guaranteed = (long)(year.Guaranteed * scaleFactor);
+            }
+
+            player.CurrentContract.TotalValue = (long)(player.CurrentContract.TotalValue * scaleFactor);
+            player.CurrentContract.TotalGuaranteed = (long)(player.CurrentContract.TotalGuaranteed * scaleFactor);
+        }
     }
 
     public void SetupDepthChart(Team team, List<Player> teamPlayers)

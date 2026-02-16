@@ -24,11 +24,8 @@ public class Contract
 
     public long CalculateDeadCap(int currentYear)
     {
-        long deadCap = 0;
-        foreach (var year in Years.Where(y => y.Year >= currentYear))
-        {
-            deadCap += year.DeadCap;
-        }
-        return deadCap;
+        // Each year's DeadCap already represents the total dead cap if cut in that year
+        // (remaining prorated signing bonus), so just return the current year's value.
+        return Years.FirstOrDefault(y => y.Year == currentYear)?.DeadCap ?? 0;
     }
 }

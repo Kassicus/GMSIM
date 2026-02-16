@@ -36,7 +36,7 @@ public class Team
     public long SalaryCap { get; set; }
     public long CurrentCapUsed { get; set; }
     public long DeadCapTotal { get; set; }
-    public long CapSpace => SalaryCap - CurrentCapUsed;
+    public long CapSpace => SalaryCap - CurrentCapUsed - DeadCapTotal;
     public long CarryoverCap { get; set; }
 
     // Draft Capital

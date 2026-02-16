@@ -35,6 +35,10 @@ public partial class GameManager : Node
     // Generation
     private PlayerGenerator? _playerGenerator;
 
+    // Systems (Phase 2)
+    public SalaryCapManager SalaryCapManager { get; private set; } = new();
+    public RosterManager RosterManager { get; private set; } = null!;
+
     public bool IsGameActive { get; private set; }
 
     public override void _Ready()
@@ -73,6 +77,7 @@ public partial class GameManager : Node
         string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
         LoadTeams(dataPath);
         InitializePlayerGenerator(dataPath);
+        InitializeSystems(dataPath);
         GenerateAllRosters();
         GenerateCoachingStaffs();
         GenerateDraftPicks();
@@ -109,6 +114,11 @@ public partial class GameManager : Node
         AIProfiles = save.AIProfiles;
 
         RebuildLookups();
+
+        // Initialize systems for loaded save
+        string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
+        InitializeSystems(dataPath);
+
         IsGameActive = true;
     }
 
@@ -370,12 +380,24 @@ public partial class GameManager : Node
         }
     }
 
+    private void InitializeSystems(string dataPath)
+    {
+        SalaryCapManager = new SalaryCapManager();
+        SalaryCapManager.LoadRules(dataPath);
+
+        RosterManager = new RosterManager(
+            () => Teams,
+            () => Players,
+            () => TransactionLog,
+            SalaryCapManager,
+            () => Calendar);
+    }
+
     private void CalculateAllTeamCaps()
     {
-        if (_playerGenerator == null) return;
         foreach (var team in Teams)
         {
-            _playerGenerator.RecalculateTeamCap(team, Players, Calendar.CurrentYear);
+            SalaryCapManager.RecalculateTeamCap(team, Players, Calendar.CurrentYear);
         }
     }
 

@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://game_shell"]
+[gd_scene load_steps=3 format=3 uid="uid://game_shell"]
 
 [ext_resource type="Script" path="res://Scripts/UI/GameShell.cs" id="1"]
+
+[sub_resource type="ButtonGroup" id="nav_group"]
 
 [node name="GameShell" type="Control"]
 layout_mode = 3
@@ -67,6 +69,43 @@ layout_mode = 2
 custom_minimum_size = Vector2(120, 0)
 text = "Advance >"
 
+[node name="NavBar" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
+[node name="NavHBox" type="HBoxContainer" parent="VBox/NavBar"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="DashboardBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("nav_group")
+text = "Dashboard"
+
+[node name="RosterBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Roster"
+
+[node name="DepthChartBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Depth Chart"
+
+[node name="CapBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Cap Space"
+
 [node name="ContentArea" type="Control" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -74,3 +113,7 @@ size_flags_vertical = 3
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/SaveButton" to="." method="OnSavePressed"]
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/MenuButton" to="." method="OnMenuPressed"]
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/AdvanceButton" to="." method="OnAdvancePressed"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/DashboardBtn" to="." method="OnNavDashboard"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/RosterBtn" to="." method="OnNavRoster"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/DepthChartBtn" to="." method="OnNavDepthChart"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/CapBtn" to="." method="OnNavCap"]

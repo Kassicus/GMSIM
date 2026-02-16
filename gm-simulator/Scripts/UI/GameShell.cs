@@ -13,6 +13,10 @@ public partial class GameShell : Control
     private Control _contentArea = null!;
 
     private PackedScene _dashboardScene = null!;
+    private PackedScene _rosterViewScene = null!;
+    private PackedScene _depthChartScene = null!;
+    private PackedScene _capOverviewScene = null!;
+    private PackedScene _playerCardScene = null!;
     private Node? _currentContent;
 
     public override void _Ready()
@@ -29,12 +33,19 @@ public partial class GameShell : Control
         {
             EventBus.Instance.PhaseChanged += OnPhaseChanged;
             EventBus.Instance.WeekAdvanced += OnWeekAdvanced;
+            EventBus.Instance.PlayerCut += OnRosterChanged;
+            EventBus.Instance.PlayerSigned += OnRosterChanged;
+            EventBus.Instance.PlayerSelected += OnPlayerSelected;
         }
 
-        // Load dashboard into content area
+        // Preload all content scenes
         _dashboardScene = GD.Load<PackedScene>("res://Scenes/Dashboard/Dashboard.tscn");
-        LoadContent(_dashboardScene);
+        _rosterViewScene = GD.Load<PackedScene>("res://Scenes/Roster/RosterView.tscn");
+        _depthChartScene = GD.Load<PackedScene>("res://Scenes/Roster/DepthChart.tscn");
+        _capOverviewScene = GD.Load<PackedScene>("res://Scenes/Roster/CapOverview.tscn");
+        _playerCardScene = GD.Load<PackedScene>("res://Scenes/Roster/PlayerCard.tscn");
 
+        LoadContent(_dashboardScene);
         RefreshTopBar();
     }
 
@@ -44,6 +55,9 @@ public partial class GameShell : Control
         {
             EventBus.Instance.PhaseChanged -= OnPhaseChanged;
             EventBus.Instance.WeekAdvanced -= OnWeekAdvanced;
+            EventBus.Instance.PlayerCut -= OnRosterChanged;
+            EventBus.Instance.PlayerSigned -= OnRosterChanged;
+            EventBus.Instance.PlayerSelected -= OnPlayerSelected;
         }
     }
 
@@ -78,6 +92,25 @@ public partial class GameShell : Control
         _capLabel.Text = $"Cap: {FormatCurrency(team.CapSpace)}";
     }
 
+    // --- Navigation ---
+
+    private void OnNavDashboard() => LoadContent(_dashboardScene);
+    private void OnNavRoster() => LoadContent(_rosterViewScene);
+    private void OnNavDepthChart() => LoadContent(_depthChartScene);
+    private void OnNavCap() => LoadContent(_capOverviewScene);
+
+    // --- PlayerCard Popup ---
+
+    private void OnPlayerSelected(string playerId)
+    {
+        var card = _playerCardScene.Instantiate<PlayerCard>();
+        card.Initialize(playerId);
+        AddChild(card);
+        card.PopupCentered();
+    }
+
+    // --- Top Bar Button Handlers ---
+
     private void OnAdvancePressed()
     {
         GameManager.Instance?.AdvanceWeek();
@@ -94,15 +127,13 @@ public partial class GameShell : Control
         GetTree().ChangeSceneToFile("res://Scenes/Main/MainMenu.tscn");
     }
 
-    private void OnPhaseChanged(int phase)
-    {
-        RefreshTopBar();
-    }
+    // --- Signal Handlers ---
 
-    private void OnWeekAdvanced(int year, int week)
-    {
-        RefreshTopBar();
-    }
+    private void OnPhaseChanged(int phase) => RefreshTopBar();
+    private void OnWeekAdvanced(int year, int week) => RefreshTopBar();
+    private void OnRosterChanged(string playerId, string teamId) => RefreshTopBar();
+
+    // --- Utility ---
 
     public static string FormatCurrency(long cents)
     {
@@ -112,5 +143,12 @@ public partial class GameShell : Control
         if (Math.Abs(dollars) >= 1_000)
             return $"${dollars / 1_000:N0}K";
         return $"${dollars:N0}";
+    }
+
+    public static string FormatHeight(int totalInches)
+    {
+        int feet = totalInches / 12;
+        int inches = totalInches % 12;
+        return $"{feet}'{inches}\"";
     }
 }

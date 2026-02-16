@@ -170,44 +170,65 @@ public static class ContractGenerator
 
     private static long GetMarketValue(Player player)
     {
-        // APY in cents based on overall and position
-        float positionMultiplier = GetPositionPayMultiplier(player.Position);
+        // APY in cents based on overall and position.
+        // Calibrated against real 2024 NFL data ($255.4M cap):
+        //   Top QB: ~$55M, Top EDGE: ~$34M, Top WR: ~$35M
+        //   Average starter: ~$8-15M, Backup: ~$2-4M, Depth: minimum
+        // See: PFF highest-paid players 2024, Spotrac average salaries
         long baseAPY = player.Overall switch
         {
-            >= 95 => 4500000000L,
-            >= 90 => 3200000000L,
-            >= 85 => 2200000000L,
-            >= 80 => 1400000000L,
-            >= 75 => 900000000L,
-            >= 70 => 550000000L,
-            >= 65 => 350000000L,
-            _ => 200000000L,
+            >= 97 => 3500000000L,  // Elite (top 1-2 at position): $35M base
+            >= 93 => 2400000000L,  // All-Pro caliber: $24M base
+            >= 90 => 1800000000L,  // Pro Bowl level: $18M base
+            >= 85 => 1200000000L,  // Quality starter: $12M base
+            >= 80 => 700000000L,   // Average starter: $7M base
+            >= 75 => 400000000L,   // Low-end starter: $4M base
+            >= 70 => 200000000L,   // Backup: $2M base
+            _ => 0,                // Depth: minimum salary (handled below)
         };
 
-        return (long)(baseAPY * positionMultiplier);
+        // Sub-70 OVR veterans just get minimum salary
+        if (baseAPY == 0)
+            return GetMinimumSalary(player.YearsInLeague);
+
+        float positionMultiplier = GetPositionPayMultiplier(player.Position);
+        long apy = (long)(baseAPY * positionMultiplier);
+
+        // Floor: never pay less than minimum salary
+        long minimum = GetMinimumSalary(player.YearsInLeague);
+        return Math.Max(apy, minimum);
     }
 
     private static float GetPositionPayMultiplier(Position pos)
     {
+        // Calibrated against real 2024 NFL top-of-market data:
+        //   QB #1: $55M → 1.6x of $35M base
+        //   EDGE #1: $34M → ~1.0x
+        //   WR #1: $35M → ~1.0x
+        //   OT #1: $28M → ~0.8x
+        //   DT #1: $32M → ~0.9x
+        //   CB #1: $21M → ~0.6x (but top CBs are 90+ OVR, so $18M*0.6=$10.8M... no)
+        // Actually position multipliers need to reflect the PAY PREMIUM at each position:
         return pos switch
         {
-            Position.QB => 1.5f,
-            Position.EDGE => 1.1f,
-            Position.CB => 1.05f,
-            Position.WR => 1.05f,
-            Position.LT => 1.05f,
-            Position.DT => 1.0f,
-            Position.FS or Position.SS => 0.95f,
-            Position.MLB => 0.95f,
-            Position.TE => 0.90f,
-            Position.HB => 0.85f,
-            Position.RT => 0.95f,
-            Position.LG or Position.RG or Position.C => 0.90f,
-            Position.OLB => 0.90f,
-            Position.K or Position.P => 0.40f,
-            Position.FB => 0.35f,
-            Position.LS => 0.20f,
-            _ => 0.80f,
+            Position.QB => 1.55f,      // QBs are paid far above all others
+            Position.EDGE => 1.0f,     // Top EDGE ~$34M aligns with base
+            Position.WR => 1.0f,       // Top WR ~$35M aligns with base
+            Position.DT => 0.90f,      // Top DT ~$32M
+            Position.LT => 0.85f,      // Top OT ~$28M
+            Position.CB => 0.80f,      // Top CB ~$21M
+            Position.FS or Position.SS => 0.70f,  // Top S ~$21M
+            Position.MLB => 0.65f,     // Top LB ~$20M
+            Position.OLB => 0.60f,     // Mid-tier LB
+            Position.RT => 0.75f,      // Slightly less than LT
+            Position.LG or Position.RG => 0.65f, // Top OG ~$21M
+            Position.C => 0.55f,       // Top C ~$13.5M
+            Position.TE => 0.55f,      // Top TE ~$17M
+            Position.HB => 0.55f,      // Top RB ~$19M (but most RBs underpaid)
+            Position.FB => 0.15f,      // FBs are minimum or near-minimum
+            Position.K or Position.P => 0.20f,   // Specialists ~$5-7M at top
+            Position.LS => 0.08f,      // Long snappers: ~$1-2M max
+            _ => 0.50f,
         };
     }
 
