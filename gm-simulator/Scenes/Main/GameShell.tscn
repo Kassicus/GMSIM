@@ -1,0 +1,76 @@
+[gd_scene load_steps=2 format=3 uid="uid://game_shell"]
+
+[ext_resource type="Script" path="res://Scripts/UI/GameShell.cs" id="1"]
+
+[node name="GameShell" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TopBar" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 50)
+
+[node name="TopBarHBox" type="HBoxContainer" parent="VBox/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="TeamLabel" type="Label" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Team Name"
+
+[node name="RecordLabel" type="Label" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+text = "0-0-0"
+
+[node name="PhaseLabel" type="Label" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+text = "Phase: --"
+
+[node name="WeekLabel" type="Label" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+text = "Week: --"
+
+[node name="CapLabel" type="Label" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+text = "Cap: --"
+
+[node name="Spacer" type="Control" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SaveButton" type="Button" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Save"
+
+[node name="MenuButton" type="Button" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Menu"
+
+[node name="AdvanceButton" type="Button" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+text = "Advance >"
+
+[node name="ContentArea" type="Control" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[connection signal="pressed" from="VBox/TopBar/TopBarHBox/SaveButton" to="." method="OnSavePressed"]
+[connection signal="pressed" from="VBox/TopBar/TopBarHBox/MenuButton" to="." method="OnMenuPressed"]
+[connection signal="pressed" from="VBox/TopBar/TopBarHBox/AdvanceButton" to="." method="OnAdvancePressed"]

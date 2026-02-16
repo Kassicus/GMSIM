@@ -1,0 +1,87 @@
+[gd_scene load_steps=2 format=3 uid="uid://new_game_setup"]
+
+[ext_resource type="Script" path="res://Scripts/UI/NewGameSetup.cs" id="1"]
+
+[node name="NewGameSetup" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.15, 1)
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 30
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Title" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "SELECT YOUR TEAM"
+horizontal_alignment = 1
+
+[node name="TeamListScroll" type="ScrollContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TeamList" type="ItemList" parent="MarginContainer/VBox/TeamListScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+auto_height = true
+same_column_width = true
+max_columns = 4
+
+[node name="BottomBar" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="SeedLabel" type="Label" parent="MarginContainer/VBox/BottomBar"]
+layout_mode = 2
+text = "Seed:"
+
+[node name="SeedInput" type="LineEdit" parent="MarginContainer/VBox/BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+placeholder_text = "Random"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBox/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BackButton" type="Button" parent="MarginContainer/VBox/BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 45)
+text = "Back"
+
+[node name="StartButton" type="Button" parent="MarginContainer/VBox/BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 45)
+text = "Start Game"
+
+[connection signal="item_selected" from="MarginContainer/VBox/TeamListScroll/TeamList" to="." method="OnTeamSelected"]
+[connection signal="pressed" from="MarginContainer/VBox/BottomBar/BackButton" to="." method="OnBackPressed"]
+[connection signal="pressed" from="MarginContainer/VBox/BottomBar/StartButton" to="." method="OnStartPressed"]

@@ -13,6 +13,12 @@ config_version=5
 config/name="GM Simulator"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+run/main_scene="res://Scenes/Main/MainMenu.tscn"
+
+[autoload]
+
+EventBus="*res://Scripts/Core/EventBus.cs"
+GameManager="*res://Scripts/Core/GameManager.cs"
 
 [dotnet]
 
