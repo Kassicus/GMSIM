@@ -1,4 +1,5 @@
 using GMSimulator.Models.Enums;
+using GMSimulator.Systems;
 
 namespace GMSimulator.Models;
 
@@ -28,6 +29,11 @@ public class SaveData
     // History
     public List<Season> SeasonHistory { get; set; } = new();
     public List<TransactionRecord> TransactionLog { get; set; } = new();
+
+    // Season State (Phase 3)
+    public Season? CurrentSeason { get; set; }
+    public List<PlayoffSeed>? AFCPlayoffSeeds { get; set; }
+    public List<PlayoffSeed>? NFCPlayoffSeeds { get; set; }
 
     // AI State
     public Dictionary<string, AIGMProfile> AIProfiles { get; set; } = new();

@@ -106,6 +106,20 @@ toggle_mode = true
 button_group = SubResource("nav_group")
 text = "Cap Space"
 
+[node name="ScheduleBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Schedule"
+
+[node name="StandingsBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Standings"
+
 [node name="ContentArea" type="Control" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -117,3 +131,5 @@ size_flags_vertical = 3
 [connection signal="pressed" from="VBox/NavBar/NavHBox/RosterBtn" to="." method="OnNavRoster"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/DepthChartBtn" to="." method="OnNavDepthChart"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/CapBtn" to="." method="OnNavCap"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/ScheduleBtn" to="." method="OnNavSchedule"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/StandingsBtn" to="." method="OnNavStandings"]

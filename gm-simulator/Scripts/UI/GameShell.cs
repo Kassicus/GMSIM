@@ -17,6 +17,9 @@ public partial class GameShell : Control
     private PackedScene _depthChartScene = null!;
     private PackedScene _capOverviewScene = null!;
     private PackedScene _playerCardScene = null!;
+    private PackedScene _weekScheduleScene = null!;
+    private PackedScene _standingsScene = null!;
+    private PackedScene _postGameReportScene = null!;
     private Node? _currentContent;
 
     public override void _Ready()
@@ -36,6 +39,7 @@ public partial class GameShell : Control
             EventBus.Instance.PlayerCut += OnRosterChanged;
             EventBus.Instance.PlayerSigned += OnRosterChanged;
             EventBus.Instance.PlayerSelected += OnPlayerSelected;
+            EventBus.Instance.WeekSimulated += OnWeekSimulated;
         }
 
         // Preload all content scenes
@@ -44,6 +48,9 @@ public partial class GameShell : Control
         _depthChartScene = GD.Load<PackedScene>("res://Scenes/Roster/DepthChart.tscn");
         _capOverviewScene = GD.Load<PackedScene>("res://Scenes/Roster/CapOverview.tscn");
         _playerCardScene = GD.Load<PackedScene>("res://Scenes/Roster/PlayerCard.tscn");
+        _weekScheduleScene = GD.Load<PackedScene>("res://Scenes/GameDay/WeekSchedule.tscn");
+        _standingsScene = GD.Load<PackedScene>("res://Scenes/League/Standings.tscn");
+        _postGameReportScene = GD.Load<PackedScene>("res://Scenes/GameDay/PostGameReport.tscn");
 
         LoadContent(_dashboardScene);
         RefreshTopBar();
@@ -58,6 +65,7 @@ public partial class GameShell : Control
             EventBus.Instance.PlayerCut -= OnRosterChanged;
             EventBus.Instance.PlayerSigned -= OnRosterChanged;
             EventBus.Instance.PlayerSelected -= OnPlayerSelected;
+            EventBus.Instance.WeekSimulated -= OnWeekSimulated;
         }
     }
 
@@ -98,6 +106,8 @@ public partial class GameShell : Control
     private void OnNavRoster() => LoadContent(_rosterViewScene);
     private void OnNavDepthChart() => LoadContent(_depthChartScene);
     private void OnNavCap() => LoadContent(_capOverviewScene);
+    private void OnNavSchedule() => LoadContent(_weekScheduleScene);
+    private void OnNavStandings() => LoadContent(_standingsScene);
 
     // --- PlayerCard Popup ---
 
@@ -132,6 +142,28 @@ public partial class GameShell : Control
     private void OnPhaseChanged(int phase) => RefreshTopBar();
     private void OnWeekAdvanced(int year, int week) => RefreshTopBar();
     private void OnRosterChanged(string playerId, string teamId) => RefreshTopBar();
+
+    private void OnWeekSimulated(int year, int week)
+    {
+        RefreshTopBar();
+
+        // Auto-show PostGameReport for player's team game
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
+        var playerResult = gm.RecentGameResults.FirstOrDefault(r =>
+        {
+            var game = gm.CurrentSeason.Games.FirstOrDefault(g => g.Id == r.GameId);
+            return game != null && (game.HomeTeamId == gm.PlayerTeamId || game.AwayTeamId == gm.PlayerTeamId);
+        });
+
+        if (playerResult != null)
+        {
+            var report = _postGameReportScene.Instantiate<PostGameReport>();
+            report.Initialize(playerResult);
+            GetTree().Root.AddChild(report);
+        }
+    }
 
     // --- Utility ---
 

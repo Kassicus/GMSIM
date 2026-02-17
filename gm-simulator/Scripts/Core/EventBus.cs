@@ -42,6 +42,9 @@ public partial class EventBus : Node
     [Signal] public delegate void GameCompletedEventHandler(string gameId);
     [Signal] public delegate void PlayoffTeamsSetEventHandler();
     [Signal] public delegate void SuperBowlCompletedEventHandler(string winnerTeamId);
+    [Signal] public delegate void ScheduleGeneratedEventHandler(int season);
+    [Signal] public delegate void WeekSimulatedEventHandler(int year, int week);
+    [Signal] public delegate void PlayoffRoundCompletedEventHandler(int round);
 
     // UI
     [Signal] public delegate void NotificationCreatedEventHandler(string title, string message, int priority);

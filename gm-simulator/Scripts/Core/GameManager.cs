@@ -39,6 +39,16 @@ public partial class GameManager : Node
     public SalaryCapManager SalaryCapManager { get; private set; } = new();
     public RosterManager RosterManager { get; private set; } = null!;
 
+    // Systems (Phase 3)
+    public SimulationEngine SimEngine { get; private set; } = null!;
+    public InjurySystem InjurySystem { get; private set; } = null!;
+
+    // Season State (Phase 3)
+    public Season CurrentSeason { get; private set; } = new();
+    public List<GameResult> RecentGameResults { get; private set; } = new();
+    public List<PlayoffSeed> AFCPlayoffSeeds { get; private set; } = new();
+    public List<PlayoffSeed> NFCPlayoffSeeds { get; private set; } = new();
+
     public bool IsGameActive { get; private set; }
 
     public override void _Ready()
@@ -72,6 +82,10 @@ public partial class GameManager : Node
         _playerLookup.Clear();
         _teamLookup.Clear();
         _coachLookup.Clear();
+        CurrentSeason = new Season();
+        RecentGameResults.Clear();
+        AFCPlayoffSeeds.Clear();
+        NFCPlayoffSeeds.Clear();
 
         // Load data and generate league
         string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
@@ -112,6 +126,9 @@ public partial class GameManager : Node
         TransactionLog = save.TransactionLog;
         SeasonHistory = save.SeasonHistory;
         AIProfiles = save.AIProfiles;
+        CurrentSeason = save.CurrentSeason ?? new Season();
+        AFCPlayoffSeeds = save.AFCPlayoffSeeds ?? new List<PlayoffSeed>();
+        NFCPlayoffSeeds = save.NFCPlayoffSeeds ?? new List<PlayoffSeed>();
 
         RebuildLookups();
 
@@ -142,6 +159,9 @@ public partial class GameManager : Node
             TransactionLog = TransactionLog,
             SeasonHistory = SeasonHistory,
             AIProfiles = AIProfiles,
+            CurrentSeason = CurrentSeason,
+            AFCPlayoffSeeds = AFCPlayoffSeeds,
+            NFCPlayoffSeeds = NFCPlayoffSeeds,
         };
     }
 
@@ -151,8 +171,27 @@ public partial class GameManager : Node
     {
         if (!Calendar.CanAdvance()) return;
 
+        var oldPhase = Calendar.CurrentPhase;
         var result = Calendar.AdvanceWeek();
         if (!result.Success) return;
+
+        // Detect phase transition
+        if (result.NewPhase != oldPhase)
+            OnPhaseTransition(result.NewPhase);
+
+        // Simulate games for current week if in season
+        if (Calendar.IsRegularSeason() || Calendar.IsPlayoffs() ||
+            Calendar.CurrentPhase == GamePhase.SuperBowl)
+        {
+            SimulateCurrentWeekGames();
+        }
+
+        // Tick injuries every week during season
+        if (Calendar.IsRegularSeason() || Calendar.IsPlayoffs() ||
+            Calendar.CurrentPhase == GamePhase.SuperBowl)
+        {
+            InjurySystem.TickInjuries();
+        }
 
         if (result.YearChanged)
         {
@@ -166,8 +205,12 @@ public partial class GameManager : Node
 
     public void AdvanceToNextPhase()
     {
+        var oldPhase = Calendar.CurrentPhase;
         var result = Calendar.AdvanceToNextPhase();
         if (!result.Success) return;
+
+        if (result.NewPhase != oldPhase)
+            OnPhaseTransition(result.NewPhase);
 
         if (result.YearChanged)
         {
@@ -177,6 +220,235 @@ public partial class GameManager : Node
 
         EventBus.Instance?.EmitSignal(EventBus.SignalName.PhaseChanged, (int)Calendar.CurrentPhase);
         EventBus.Instance?.EmitSignal(EventBus.SignalName.WeekAdvanced, Calendar.CurrentYear, Calendar.CurrentWeek);
+    }
+
+    // --- Phase 3: Season Simulation ---
+
+    private void OnPhaseTransition(GamePhase newPhase)
+    {
+        switch (newPhase)
+        {
+            case GamePhase.RegularSeason:
+                GenerateSeasonSchedule();
+                break;
+            case GamePhase.Playoffs:
+                SetupPlayoffBracket();
+                break;
+            case GamePhase.SuperBowl:
+                SetupSuperBowl();
+                break;
+        }
+    }
+
+    private void GenerateSeasonSchedule()
+    {
+        CurrentSeason = new Season { Year = Calendar.CurrentYear };
+        var games = ScheduleGenerator.GenerateRegularSeason(Teams, Calendar.CurrentYear, Rng);
+        CurrentSeason.Games.AddRange(games);
+
+        // Reset all team records for new season
+        foreach (var team in Teams)
+        {
+            team.CurrentRecord = new TeamRecord { Season = Calendar.CurrentYear };
+        }
+
+        GD.Print($"Generated {games.Count} regular season games for {Calendar.CurrentYear}");
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.ScheduleGenerated, Calendar.CurrentYear);
+    }
+
+    private void SimulateCurrentWeekGames()
+    {
+        RecentGameResults.Clear();
+
+        var weekGames = CurrentSeason.Games
+            .Where(g => g.Week == Calendar.CurrentWeek && !g.IsCompleted)
+            .ToList();
+
+        if (weekGames.Count == 0) return;
+
+        foreach (var game in weekGames)
+        {
+            var result = SimEngine.SimulateGame(game);
+
+            // Apply to Game model
+            game.HomeScore = result.HomeScore;
+            game.AwayScore = result.AwayScore;
+            game.IsCompleted = true;
+            game.PlayerOfTheGameId = result.PlayerOfTheGameId;
+
+            // Apply player stats
+            ApplyPlayerStats(result);
+
+            // Apply injuries
+            InjurySystem.ApplyInjuries(result, Calendar.CurrentYear, Calendar.CurrentWeek);
+
+            // Update team records
+            UpdateTeamRecords(game);
+
+            // Store for UI
+            RecentGameResults.Add(result);
+
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.GameCompleted, game.Id);
+        }
+
+        GD.Print($"Simulated {weekGames.Count} games for week {Calendar.CurrentWeek}");
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.WeekSimulated, Calendar.CurrentYear, Calendar.CurrentWeek);
+
+        // Check if a playoff round just completed
+        if (Calendar.IsPlayoffs())
+            CheckAndAdvancePlayoffRound();
+    }
+
+    private void ApplyPlayerStats(GameResult result)
+    {
+        foreach (var (playerId, gameStats) in result.PlayerStats)
+        {
+            var player = GetPlayer(playerId);
+            if (player == null) continue;
+
+            if (!player.CareerStats.TryGetValue(Calendar.CurrentYear, out var seasonStats))
+            {
+                seasonStats = new SeasonStats { Season = Calendar.CurrentYear };
+                player.CareerStats[Calendar.CurrentYear] = seasonStats;
+            }
+
+            seasonStats.GamesPlayed++;
+            seasonStats.Completions += gameStats.Completions;
+            seasonStats.Attempts += gameStats.Attempts;
+            seasonStats.PassingYards += gameStats.PassingYards;
+            seasonStats.PassingTDs += gameStats.PassingTDs;
+            seasonStats.Interceptions += gameStats.Interceptions;
+            seasonStats.Sacked += gameStats.Sacked;
+            seasonStats.RushAttempts += gameStats.RushAttempts;
+            seasonStats.RushingYards += gameStats.RushingYards;
+            seasonStats.RushingTDs += gameStats.RushingTDs;
+            seasonStats.Fumbles += gameStats.Fumbles;
+            seasonStats.FumblesLost += gameStats.FumblesLost;
+            seasonStats.Targets += gameStats.Targets;
+            seasonStats.Receptions += gameStats.Receptions;
+            seasonStats.ReceivingYards += gameStats.ReceivingYards;
+            seasonStats.ReceivingTDs += gameStats.ReceivingTDs;
+            seasonStats.TotalTackles += gameStats.TotalTackles;
+            seasonStats.SoloTackles += gameStats.SoloTackles;
+            seasonStats.Sacks += gameStats.Sacks;
+            seasonStats.TacklesForLoss += gameStats.TacklesForLoss;
+            seasonStats.QBHits += gameStats.QBHits;
+            seasonStats.ForcedFumbles += gameStats.ForcedFumbles;
+            seasonStats.FumbleRecoveries += gameStats.FumbleRecoveries;
+            seasonStats.InterceptionsDef += gameStats.InterceptionsDef;
+            seasonStats.PassesDefended += gameStats.PassesDefended;
+            seasonStats.DefensiveTDs += gameStats.DefensiveTDs;
+            seasonStats.FGMade += gameStats.FGMade;
+            seasonStats.FGAttempted += gameStats.FGAttempted;
+            seasonStats.XPMade += gameStats.XPMade;
+            seasonStats.XPAttempted += gameStats.XPAttempted;
+        }
+    }
+
+    private void UpdateTeamRecords(Game game)
+    {
+        var homeTeam = GetTeam(game.HomeTeamId);
+        var awayTeam = GetTeam(game.AwayTeamId);
+        if (homeTeam == null || awayTeam == null) return;
+
+        homeTeam.CurrentRecord.PointsFor += game.HomeScore;
+        homeTeam.CurrentRecord.PointsAgainst += game.AwayScore;
+        awayTeam.CurrentRecord.PointsFor += game.AwayScore;
+        awayTeam.CurrentRecord.PointsAgainst += game.HomeScore;
+
+        if (game.HomeScore > game.AwayScore)
+        {
+            homeTeam.CurrentRecord.Wins++;
+            awayTeam.CurrentRecord.Losses++;
+        }
+        else if (game.AwayScore > game.HomeScore)
+        {
+            awayTeam.CurrentRecord.Wins++;
+            homeTeam.CurrentRecord.Losses++;
+        }
+        else
+        {
+            homeTeam.CurrentRecord.Ties++;
+            awayTeam.CurrentRecord.Ties++;
+        }
+    }
+
+    // --- Playoff Flow ---
+
+    private void SetupPlayoffBracket()
+    {
+        var regularGames = CurrentSeason.Games.Where(g => !g.IsPlayoff).ToList();
+        var (afc, nfc) = ScheduleGenerator.DeterminePlayoffSeeds(Teams, regularGames);
+        AFCPlayoffSeeds = afc;
+        NFCPlayoffSeeds = nfc;
+
+        foreach (var seed in afc.Concat(nfc))
+        {
+            var team = GetTeam(seed.TeamId);
+            if (team != null) team.CurrentRecord.MadePlayoffs = true;
+        }
+
+        // Generate Wild Card round (week 1 of Playoffs)
+        var wildCardGames = ScheduleGenerator.GeneratePlayoffRound(
+            afc, nfc, PlayoffRound.WildCard, Calendar.CurrentYear, 1);
+        CurrentSeason.Games.AddRange(wildCardGames);
+
+        GD.Print($"Playoff bracket set. AFC #1: {GetTeam(afc[0].TeamId)?.Abbreviation}, NFC #1: {GetTeam(nfc[0].TeamId)?.Abbreviation}");
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayoffTeamsSet);
+    }
+
+    private void CheckAndAdvancePlayoffRound()
+    {
+        var playoffGames = CurrentSeason.Games.Where(g => g.IsPlayoff).ToList();
+        var currentWeekGames = playoffGames.Where(g => g.Week == Calendar.CurrentWeek).ToList();
+
+        if (currentWeekGames.All(g => g.IsCompleted))
+        {
+            int completedWeeks = playoffGames.Where(g => g.IsCompleted).Select(g => g.Week).Distinct().Count();
+
+            switch (completedWeeks)
+            {
+                case 1: // Wild Card done → generate Divisional
+                    var afcWC = ScheduleGenerator.FilterToWinners(AFCPlayoffSeeds, playoffGames);
+                    var nfcWC = ScheduleGenerator.FilterToWinners(NFCPlayoffSeeds, playoffGames);
+                    var divGames = ScheduleGenerator.GeneratePlayoffRound(
+                        afcWC, nfcWC, PlayoffRound.Divisional, Calendar.CurrentYear, 2);
+                    CurrentSeason.Games.AddRange(divGames);
+                    GD.Print("Divisional round games generated");
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayoffRoundCompleted, 1);
+                    break;
+
+                case 2: // Divisional done → generate Conference Championship
+                    var afcDiv = ScheduleGenerator.FilterToWinners(AFCPlayoffSeeds, playoffGames);
+                    var nfcDiv = ScheduleGenerator.FilterToWinners(NFCPlayoffSeeds, playoffGames);
+                    var ccGames = ScheduleGenerator.GeneratePlayoffRound(
+                        afcDiv, nfcDiv, PlayoffRound.ConferenceChampionship, Calendar.CurrentYear, 3);
+                    CurrentSeason.Games.AddRange(ccGames);
+                    GD.Print("Conference Championship games generated");
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayoffRoundCompleted, 2);
+                    break;
+
+                case 3: // Conference Championship done → advance to SuperBowl phase handled by calendar
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayoffRoundCompleted, 3);
+                    break;
+            }
+        }
+    }
+
+    private void SetupSuperBowl()
+    {
+        var playoffGames = CurrentSeason.Games.Where(g => g.IsPlayoff && g.IsCompleted).ToList();
+        var afcChamp = ScheduleGenerator.FilterToWinners(AFCPlayoffSeeds, playoffGames);
+        var nfcChamp = ScheduleGenerator.FilterToWinners(NFCPlayoffSeeds, playoffGames);
+
+        if (afcChamp.Count > 0 && nfcChamp.Count > 0)
+        {
+            var sbGames = ScheduleGenerator.GeneratePlayoffRound(
+                afcChamp, nfcChamp, PlayoffRound.SuperBowl, Calendar.CurrentYear, 1);
+            CurrentSeason.Games.AddRange(sbGames);
+
+            GD.Print($"Super Bowl set: {GetTeam(afcChamp[0].TeamId)?.Abbreviation} vs {GetTeam(nfcChamp[0].TeamId)?.Abbreviation}");
+        }
     }
 
     // --- Lookups ---
@@ -391,6 +663,21 @@ public partial class GameManager : Node
             () => TransactionLog,
             SalaryCapManager,
             () => Calendar);
+
+        InjurySystem = new InjurySystem(
+            () => Players,
+            GetPlayer,
+            () => Rng);
+
+        SimEngine = new SimulationEngine(
+            () => Teams,
+            () => Players,
+            () => Coaches,
+            () => Rng,
+            GetPlayer,
+            GetTeam,
+            GetCoach,
+            InjurySystem);
     }
 
     private void CalculateAllTeamCaps()
