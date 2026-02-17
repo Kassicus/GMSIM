@@ -3,6 +3,7 @@ using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
 using GMSimulator.UI.Components;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;

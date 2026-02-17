@@ -2,6 +2,7 @@ using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -88,13 +89,10 @@ public partial class Standings : Control
 
     private VBoxContainer CreateDivisionSection(string divName, List<Team> teams, GameManager gm)
     {
-        var section = new VBoxContainer();
-        section.AddThemeConstantOverride("separation", 2);
+        var section = UIFactory.CreateSection(2);
 
         // Division header
-        var header = new Label { Text = divName };
-        header.AddThemeFontSizeOverride("font_size", 18);
-        header.AddThemeColorOverride("font_color", new Color(0.9f, 0.8f, 0.4f));
+        var header = UIFactory.CreateSubtitle(divName);
         section.AddChild(header);
 
         // Column headers
@@ -127,10 +125,7 @@ public partial class Standings : Control
             if (team.Id == gm.PlayerTeamId)
             {
                 var panel = new PanelContainer();
-                var style = new StyleBoxFlat();
-                style.BgColor = new Color(0.15f, 0.25f, 0.4f, 0.5f);
-                style.SetCornerRadiusAll(3);
-                panel.AddThemeStyleboxOverride("panel", style);
+                panel.AddThemeStyleboxOverride("panel", ThemeStyles.HighlightRow());
                 panel.AddChild(row);
                 section.AddChild(panel);
             }
@@ -146,22 +141,22 @@ public partial class Standings : Control
     private HBoxContainer CreateStandingsRow(string team, string w, string l, string t, string pct,
         string pf, string pa, string diff, bool isHeader)
     {
-        var row = new HBoxContainer();
-        row.AddThemeConstantOverride("separation", 4);
+        var row = UIFactory.CreateRow(ThemeSpacing.XXS);
 
-        int fontSize = isHeader ? 12 : 14;
-        var color = isHeader ? new Color(0.6f, 0.6f, 0.6f) : new Color(1f, 1f, 1f);
+        int fontSize = isHeader ? ThemeFonts.ColumnHeader : ThemeFonts.BodyLarge;
+        var color = isHeader ? ThemeColors.TextTertiary : ThemeColors.TextPrimary;
 
-        AddCell(row, team, 70, HorizontalAlignment.Left, fontSize, color);
-        AddCell(row, w, 35, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, l, 35, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, t, 25, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, pct, 60, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, pf, 50, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, pa, 50, HorizontalAlignment.Center, fontSize, color);
-        AddCell(row, diff, 55, HorizontalAlignment.Center, fontSize,
-            isHeader ? color : (diff.StartsWith('+') ? new Color(0.4f, 1f, 0.4f) :
-                               diff.StartsWith('-') ? new Color(1f, 0.4f, 0.4f) : color));
+        UIFactory.AddCell(row, team, 70, fontSize, color, HorizontalAlignment.Left);
+        UIFactory.AddCell(row, w, 35, fontSize, color, HorizontalAlignment.Center);
+        UIFactory.AddCell(row, l, 35, fontSize, color, HorizontalAlignment.Center);
+        UIFactory.AddCell(row, t, 25, fontSize, color, HorizontalAlignment.Center);
+        UIFactory.AddCell(row, pct, 60, fontSize, color, HorizontalAlignment.Center);
+        UIFactory.AddCell(row, pf, 50, fontSize, color, HorizontalAlignment.Center);
+        UIFactory.AddCell(row, pa, 50, fontSize, color, HorizontalAlignment.Center);
+
+        var diffColor = isHeader ? color : (diff.StartsWith('+') ? ThemeColors.Success :
+                                            diff.StartsWith('-') ? ThemeColors.Danger : color);
+        UIFactory.AddCell(row, diff, 55, fontSize, diffColor, HorizontalAlignment.Center);
 
         return row;
     }
@@ -176,9 +171,7 @@ public partial class Standings : Control
 
         foreach (var conf in conferences)
         {
-            var header = new Label { Text = $"{conf} PLAYOFF PICTURE" };
-            header.AddThemeFontSizeOverride("font_size", 16);
-            header.AddThemeColorOverride("font_color", new Color(0.9f, 0.8f, 0.4f));
+            var header = UIFactory.CreateSubtitle($"{conf} PLAYOFF PICTURE");
             _playoffPicture.AddChild(header);
 
             if (hasSeeds)
@@ -190,13 +183,10 @@ public partial class Standings : Control
                     var seed = seeds[i];
                     var team = gm.GetTeam(seed.TeamId);
                     string marker = seed.IsDivisionWinner ? " (DIV)" : " (WC)";
-                    var label = new Label
-                    {
-                        Text = $"  {i + 1}. {team?.Abbreviation ?? "?"} ({team?.CurrentRecord.Wins}-{team?.CurrentRecord.Losses}){marker}"
-                    };
-                    label.AddThemeFontSizeOverride("font_size", 13);
-                    if (team?.Id == gm.PlayerTeamId)
-                        label.AddThemeColorOverride("font_color", new Color(0.5f, 0.8f, 1f));
+                    var seedColor = team?.Id == gm.PlayerTeamId ? ThemeColors.AccentText : (Color?)null;
+                    var label = UIFactory.CreateLabel(
+                        $"  {i + 1}. {team?.Abbreviation ?? "?"} ({team?.CurrentRecord.Wins}-{team?.CurrentRecord.Losses}){marker}",
+                        ThemeFonts.Body, seedColor);
                     _playoffPicture.AddChild(label);
                 }
             }
@@ -209,13 +199,10 @@ public partial class Standings : Control
                 {
                     var (team, isDivWinner) = projected[i];
                     string marker = isDivWinner ? " (DIV)" : " (WC)";
-                    var label = new Label
-                    {
-                        Text = $"  {i + 1}. {team.Abbreviation} ({team.CurrentRecord.Wins}-{team.CurrentRecord.Losses}){marker}"
-                    };
-                    label.AddThemeFontSizeOverride("font_size", 13);
-                    if (team.Id == gm.PlayerTeamId)
-                        label.AddThemeColorOverride("font_color", new Color(0.5f, 0.8f, 1f));
+                    var projColor = team.Id == gm.PlayerTeamId ? ThemeColors.AccentText : (Color?)null;
+                    var label = UIFactory.CreateLabel(
+                        $"  {i + 1}. {team.Abbreviation} ({team.CurrentRecord.Wins}-{team.CurrentRecord.Losses}){marker}",
+                        ThemeFonts.Body, projColor);
                     _playoffPicture.AddChild(label);
                 }
             }
@@ -273,19 +260,6 @@ public partial class Standings : Control
         return (team.CurrentRecord.Wins + team.CurrentRecord.Ties * 0.5f) / totalGames;
     }
 
-    private void AddCell(HBoxContainer row, string text, int minWidth, HorizontalAlignment align,
-        int fontSize, Color color)
-    {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(minWidth, 0),
-            HorizontalAlignment = align
-        };
-        label.AddThemeFontSizeOverride("font_size", fontSize);
-        label.AddThemeColorOverride("font_color", color);
-        row.AddChild(label);
-    }
 
     // --- Navigation ---
 

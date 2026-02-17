@@ -1,6 +1,7 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -74,7 +75,7 @@ public partial class FranchiseTagWindow : Window
                 Text = "No players with expiring contracts.",
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            noPlayers.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            noPlayers.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
             _playerList.AddChild(noPlayers);
             return;
         }
@@ -134,12 +135,12 @@ public partial class FranchiseTagWindow : Window
         if (result.Success)
         {
             _statusLabel.Text = result.Message;
-            _statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
         }
         else
         {
             _statusLabel.Text = result.Message;
-            _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
         }
 
         Refresh();
@@ -149,26 +150,12 @@ public partial class FranchiseTagWindow : Window
 
     private void AddHeaderCell(string text, int width)
     {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(width, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        label.AddThemeFontSizeOverride("font_size", 12);
-        label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        var label = UIFactory.CreateColumnHeader(text, width);
         _columnHeaders.AddChild(label);
     }
 
     private void AddCell(HBoxContainer hbox, string text, int width, HorizontalAlignment align)
     {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(width, 0),
-            HorizontalAlignment = align
-        };
-        label.AddThemeFontSizeOverride("font_size", 13);
-        hbox.AddChild(label);
+        UIFactory.AddCell(hbox, text, width, ThemeFonts.Body, align: align);
     }
 }

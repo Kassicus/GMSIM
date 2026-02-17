@@ -13,11 +13,43 @@ public static class ScheduleGenerator
     /// Generates an 18-week regular season schedule for all 32 teams.
     /// 17 games per team + 1 bye week per team.
     /// </summary>
-    public static List<Game> GenerateRegularSeason(List<Team> teams, int season, Random rng)
+    public static List<Game> GenerateRegularSeason(
+        List<Team> teams, int season, Random rng,
+        Dictionary<string, int>? priorDivisionRanks = null)
     {
         var divisions = GroupByDivision(teams);
-        var matchups = GenerateAllMatchups(teams, divisions, season, rng);
-        return AssignWeeks(matchups, teams, season, rng);
+
+        List<Game>? bestSchedule = null;
+        int bestErrorCount = int.MaxValue;
+
+        for (int attempt = 1; attempt <= 10; attempt++)
+        {
+            var matchups = GenerateAllMatchups(teams, divisions, season, rng, priorDivisionRanks);
+            var games = AssignWeeks(matchups, teams, divisions, season, rng);
+
+            var (errors, warnings) = VerifySchedule(games, teams, divisions);
+
+            if (errors.Count == 0)
+            {
+                if (attempt > 1)
+                    Godot.GD.Print($"Schedule: valid on attempt {attempt}");
+                foreach (var w in warnings)
+                    Godot.GD.Print($"Schedule soft warning: {w}");
+                return games;
+            }
+
+            if (errors.Count < bestErrorCount)
+            {
+                bestErrorCount = errors.Count;
+                bestSchedule = games;
+            }
+
+            foreach (var e in errors)
+                Godot.GD.Print($"Schedule attempt {attempt}: {e}");
+        }
+
+        Godot.GD.Print($"Schedule WARNING: returning best-effort schedule ({bestErrorCount} errors after 10 attempts)");
+        return bestSchedule!;
     }
 
     /// <summary>
@@ -107,319 +139,531 @@ public static class ScheduleGenerator
 
     private static List<(string home, string away)> GenerateAllMatchups(
         List<Team> teams, Dictionary<(Conference, Division), List<Team>> divisions,
-        int season, Random rng)
+        int season, Random rng, Dictionary<string, int>? priorDivisionRanks)
     {
         var matchups = new List<(string home, string away)>();
-        var homeGames = new Dictionary<string, int>();
-        foreach (var t in teams) homeGames[t.Id] = 0;
+        var allDivs = new[] { Division.North, Division.South, Division.East, Division.West };
 
-        var divisionKeys = divisions.Keys.ToList();
+        // Build effective division ranks (guaranteed unique 1-4 per division)
+        var ranks = BuildEffectiveRanks(divisions, priorDivisionRanks, rng);
 
-        foreach (var team in teams)
-        {
-            var conf = team.Conference;
-            var div = team.Division;
-            var ownDivKey = (conf, div);
-
-            // 1. Divisional games (6): play each rival twice (home + away)
-            var rivals = divisions[ownDivKey].Where(t => t.Id != team.Id).ToList();
-            foreach (var rival in rivals)
-            {
-                var key = StringComparer.Ordinal.Compare(team.Id, rival.Id) < 0
-                    ? (team.Id, rival.Id) : (rival.Id, team.Id);
-                if (!matchups.Contains(key) && !matchups.Contains((key.Item2, key.Item1)))
-                {
-                    matchups.Add((team.Id, rival.Id));
-                    matchups.Add((rival.Id, team.Id));
-                }
-            }
-
-            // Will add cross-division games below
-        }
-
-        // Remove duplicates from divisional (we added both directions per pair above)
-        // Actually rebuild divisional properly
-        matchups.Clear();
-
-        // Divisional: each pair plays home-and-home
+        // === 1. Divisional Games (6 per team, 96 total) ===
+        // Each team plays every division rival home and away
         foreach (var divTeams in divisions.Values)
         {
             for (int i = 0; i < divTeams.Count; i++)
+            for (int j = i + 1; j < divTeams.Count; j++)
             {
-                for (int j = i + 1; j < divTeams.Count; j++)
-                {
-                    matchups.Add((divTeams[i].Id, divTeams[j].Id)); // i hosts j
-                    matchups.Add((divTeams[j].Id, divTeams[i].Id)); // j hosts i
-                }
+                matchups.Add((divTeams[i].Id, divTeams[j].Id));
+                matchups.Add((divTeams[j].Id, divTeams[i].Id));
             }
         }
-        // 6 games per team, 48 matchups per conference, 96 total divisional games
 
-        // 2. Intra-conference rotation (4 games vs full division)
-        var conferenceDivisions = new Dictionary<Conference, List<Division>>
+        // === 2. Intra-Conference Rotation (4 per team, 64 total) ===
+        // 3 possible complete pairings of 4 divisions, rotating every 3 years
+        var intraPairings = new (int, int)[][]
         {
-            { Conference.AFC, new List<Division> { Division.North, Division.South, Division.East, Division.West } },
-            { Conference.NFC, new List<Division> { Division.North, Division.South, Division.East, Division.West } },
+            new[] { (0, 1), (2, 3) },  // N↔S, E↔W
+            new[] { (0, 2), (1, 3) },  // N↔E, S↔W
+            new[] { (0, 3), (1, 2) },  // N↔W, S↔E
         };
+        int intraPairingIdx = ((season - BaseYear) % 3 + 3) % 3;
+        var currentIntraPairs = intraPairings[intraPairingIdx];
 
         foreach (var conf in new[] { Conference.AFC, Conference.NFC })
         {
-            var divs = conferenceDivisions[conf];
-            foreach (var div in divs)
+            foreach (var (divIdxA, divIdxB) in currentIntraPairs)
             {
-                var ownTeams = divisions[(conf, div)];
-                var otherDivs = divs.Where(d => d != div).ToList();
-                int rotIndex = (season - BaseYear) % otherDivs.Count;
-                if (rotIndex < 0) rotIndex += otherDivs.Count;
-                var targetDiv = otherDivs[rotIndex];
-                var targetTeams = divisions[(conf, targetDiv)];
-
-                // Each team in div plays all 4 teams in targetDiv (2H/2A)
-                for (int i = 0; i < ownTeams.Count; i++)
-                {
-                    // Alternate home/away: teams 0,1 host targetTeams 0,1; away vs 2,3
-                    matchups.Add((ownTeams[i].Id, targetTeams[i].Id));
-                    matchups.Add((ownTeams[i].Id, targetTeams[(i + 1) % 4].Id));
-                    matchups.Add((targetTeams[(i + 2) % 4].Id, ownTeams[i].Id));
-                    matchups.Add((targetTeams[(i + 3) % 4].Id, ownTeams[i].Id));
-                }
+                var teamsA = divisions[(conf, allDivs[divIdxA])];
+                var teamsB = divisions[(conf, allDivs[divIdxB])];
+                AddFullDivisionMatchups(matchups, teamsA, teamsB);
             }
         }
 
-        // Deduplicate intra-conference (each matchup was added from both divisions' perspective)
-        matchups = DeduplicateMatchups(matchups);
-
-        // 3. Inter-conference rotation (4 games vs full opposite-conference division)
-        var allDivisions = new[] { Division.North, Division.South, Division.East, Division.West };
-        foreach (var div in allDivisions)
+        // === 3. Inter-Conference Rotation (4 per team, 64 total) ===
+        // Each AFC division plays a different NFC division, rotating yearly over 4 years
+        int interRotIdx = ((season - BaseYear) % 4 + 4) % 4;
+        for (int d = 0; d < 4; d++)
         {
-            int rotIndex = (season - BaseYear) % 4;
-            if (rotIndex < 0) rotIndex += 4;
-            var targetDiv = allDivisions[rotIndex];
-
-            var afcTeams = divisions[(Conference.AFC, div)];
-            var nfcTeams = divisions[(Conference.NFC, targetDiv)];
-
-            for (int i = 0; i < afcTeams.Count; i++)
-            {
-                matchups.Add((afcTeams[i].Id, nfcTeams[i].Id));
-                matchups.Add((afcTeams[i].Id, nfcTeams[(i + 1) % 4].Id));
-                matchups.Add((nfcTeams[(i + 2) % 4].Id, afcTeams[i].Id));
-                matchups.Add((nfcTeams[(i + 3) % 4].Id, afcTeams[i].Id));
-            }
+            var afcTeams = divisions[(Conference.AFC, allDivs[d])];
+            var nfcDiv = allDivs[(d + interRotIdx) % 4];
+            var nfcTeams = divisions[(Conference.NFC, nfcDiv)];
+            AddFullDivisionMatchups(matchups, afcTeams, nfcTeams);
         }
 
-        matchups = DeduplicateMatchups(matchups);
+        // === 4. Ranked Pair (2 per team, 32 total) ===
+        // Each team plays the same-ranked team from the 2 remaining same-conference divisions
+        var intraPartner = new Dictionary<int, int>();
+        foreach (var (a, b) in currentIntraPairs)
+        {
+            intraPartner[a] = b;
+            intraPartner[b] = a;
+        }
 
-        // 4. Intra-conference same-finish-rank (2 games)
+        var rankedPairSeen = new HashSet<(string, string)>();
         foreach (var conf in new[] { Conference.AFC, Conference.NFC })
         {
-            var divs = conferenceDivisions[conf];
-            foreach (var div in divs)
+            for (int divIdx = 0; divIdx < 4; divIdx++)
             {
-                var ownTeams = divisions[(conf, div)];
-                var otherDivs = divs.Where(d => d != div).ToList();
-                int rotIndex = (season - BaseYear) % otherDivs.Count;
-                if (rotIndex < 0) rotIndex += otherDivs.Count;
-                var rotationDiv = otherDivs[rotIndex]; // already played in full
+                int partnerIdx = intraPartner[divIdx];
+                var remainingDivIdxs = Enumerable.Range(0, 4)
+                    .Where(d => d != divIdx && d != partnerIdx)
+                    .ToList();
 
-                var remainingDivs = otherDivs.Where(d => d != rotationDiv).ToList();
+                var ownTeams = divisions[(conf, allDivs[divIdx])];
 
-                foreach (var team in ownTeams)
+                foreach (var remDivIdx in remainingDivIdxs)
                 {
-                    // For year 1 (no prior standings), use random rank 0-3
-                    int teamRank = rng.Next(4);
+                    var remTeams = divisions[(conf, allDivs[remDivIdx])];
 
-                    foreach (var remDiv in remainingDivs)
+                    foreach (var team in ownTeams)
                     {
-                        var remTeams = divisions[(conf, remDiv)];
-                        int opponentRank = Math.Min(teamRank, remTeams.Count - 1);
-                        var opponent = remTeams[opponentRank];
+                        int teamRank = ranks[team.Id];
+                        var opponent = remTeams.First(t => ranks[t.Id] == teamRank);
 
-                        // Check if we already have this matchup
-                        if (!HasMatchup(matchups, team.Id, opponent.Id))
-                        {
-                            // Alternate home/away
-                            if (rng.Next(2) == 0)
-                                matchups.Add((team.Id, opponent.Id));
-                            else
-                                matchups.Add((opponent.Id, team.Id));
-                        }
+                        // Skip if already added (from opponent's perspective)
+                        var pairKey = string.Compare(team.Id, opponent.Id, StringComparison.Ordinal) < 0
+                            ? (team.Id, opponent.Id) : (opponent.Id, team.Id);
+                        if (!rankedPairSeen.Add(pairKey)) continue;
+
+                        // Alternate home/away based on division indices + season
+                        bool homeFirst = (divIdx + remDivIdx + season) % 2 == 0;
+                        matchups.Add(homeFirst
+                            ? (team.Id, opponent.Id)
+                            : (opponent.Id, team.Id));
                     }
                 }
             }
         }
 
-        matchups = DeduplicateMatchups(matchups);
+        // === 5. 17th Game (1 per team, 16 total) ===
+        // Inter-conference game vs team with same rank from the division played 2 years ago
+        int pastInterRotIdx = ((season - BaseYear - 2) % 4 + 4) % 4;
+        bool afcHome = (season % 2 == 0);
 
-        // 5. Inter-conference 17th game (1 game)
-        foreach (var div in allDivisions)
+        for (int d = 0; d < 4; d++)
         {
-            int rotIndex = (season - BaseYear) % 4;
-            if (rotIndex < 0) rotIndex += 4;
-            var interDiv = allDivisions[rotIndex]; // already played in full
+            var afcTeams = divisions[(Conference.AFC, allDivs[d])];
+            var nfcDiv = allDivs[(d + pastInterRotIdx) % 4];
+            var nfcTeams = divisions[(Conference.NFC, nfcDiv)];
 
-            var remainingDivs = allDivisions.Where(d => d != interDiv).ToList();
-            // Pick one remaining division for the 17th game
-            int seventeenthRotIndex = ((season - BaseYear) / 4) % remainingDivs.Count;
-            if (seventeenthRotIndex < 0) seventeenthRotIndex += remainingDivs.Count;
-            var seventeenthDiv = remainingDivs[seventeenthRotIndex];
-
-            var afcTeams = divisions[(Conference.AFC, div)];
-            var nfcTeams = divisions[(Conference.NFC, seventeenthDiv)];
-
-            for (int i = 0; i < afcTeams.Count; i++)
+            foreach (var afcTeam in afcTeams)
             {
-                int opponentIdx = rng.Next(nfcTeams.Count);
-                var opponent = nfcTeams[opponentIdx];
+                int teamRank = ranks[afcTeam.Id];
+                var nfcOpponent = nfcTeams.First(t => ranks[t.Id] == teamRank);
 
-                if (!HasMatchup(matchups, afcTeams[i].Id, opponent.Id))
-                {
-                    bool afcHome = (season % 2 == 0);
-                    if (afcHome)
-                        matchups.Add((afcTeams[i].Id, opponent.Id));
-                    else
-                        matchups.Add((opponent.Id, afcTeams[i].Id));
-                }
+                matchups.Add(afcHome
+                    ? (afcTeam.Id, nfcOpponent.Id)
+                    : (nfcOpponent.Id, afcTeam.Id));
             }
         }
 
-        matchups = DeduplicateMatchups(matchups);
-
-        // Verify: each team should have ~17 games. If short, fill with random opponents.
+        // === Verification ===
         var gameCount = new Dictionary<string, int>();
         foreach (var t in teams) gameCount[t.Id] = 0;
-        foreach (var (h, a) in matchups)
+        foreach (var (h, a) in matchups) { gameCount[h]++; gameCount[a]++; }
+
+        foreach (var t in teams)
         {
-            gameCount[h]++;
-            gameCount[a]++;
+            if (gameCount[t.Id] != 17)
+                Godot.GD.Print($"Schedule WARNING: {t.FullName} has {gameCount[t.Id]} games (expected 17)");
         }
 
-        // Fill any team that has < 17 games
-        foreach (var team in teams)
+        return matchups;
+    }
+
+    /// <summary>
+    /// Generates 16 matchups between two 4-team divisions (2H/2A per team).
+    /// </summary>
+    private static void AddFullDivisionMatchups(
+        List<(string home, string away)> matchups,
+        List<Team> divA, List<Team> divB)
+    {
+        for (int i = 0; i < divA.Count; i++)
         {
-            while (gameCount[team.Id] < 17)
+            // i hosts divB[i] and divB[(i+1)%4]
+            matchups.Add((divA[i].Id, divB[i].Id));
+            matchups.Add((divA[i].Id, divB[(i + 1) % 4].Id));
+            // i visits divB[(i+2)%4] and divB[(i+3)%4]
+            matchups.Add((divB[(i + 2) % 4].Id, divA[i].Id));
+            matchups.Add((divB[(i + 3) % 4].Id, divA[i].Id));
+        }
+    }
+
+    /// <summary>
+    /// Builds a rank dictionary where every team in every division has a unique rank 1-4.
+    /// Uses prior-year division ranks when available, falls back to random.
+    /// </summary>
+    private static Dictionary<string, int> BuildEffectiveRanks(
+        Dictionary<(Conference, Division), List<Team>> divisions,
+        Dictionary<string, int>? priorRanks, Random rng)
+    {
+        var ranks = new Dictionary<string, int>();
+
+        foreach (var (key, divTeams) in divisions)
+        {
+            bool usePrior = false;
+            if (priorRanks != null)
             {
-                // Find a team also short on games that we haven't played
-                var candidate = teams
-                    .Where(t => t.Id != team.Id && gameCount[t.Id] < 17
-                                && !HasMatchup(matchups, team.Id, t.Id))
-                    .OrderBy(_ => rng.Next())
-                    .FirstOrDefault();
+                var divRanks = divTeams.Select(t => priorRanks.GetValueOrDefault(t.Id, 0)).ToList();
+                usePrior = divRanks.Distinct().Count() == 4 && divRanks.All(r => r >= 1 && r <= 4);
+            }
 
-                if (candidate == null) break;
-
-                if (rng.Next(2) == 0)
-                    matchups.Add((team.Id, candidate.Id));
-                else
-                    matchups.Add((candidate.Id, team.Id));
-
-                gameCount[team.Id]++;
-                gameCount[candidate.Id]++;
+            if (usePrior)
+            {
+                foreach (var t in divTeams)
+                    ranks[t.Id] = priorRanks![t.Id];
+            }
+            else
+            {
+                var shuffled = divTeams.OrderBy(_ => rng.Next()).ToList();
+                for (int i = 0; i < shuffled.Count; i++)
+                    ranks[shuffled[i].Id] = i + 1;
             }
         }
 
-        // Trim any team that has > 17 games
-        var teamGames = new Dictionary<string, int>();
-        foreach (var t in teams) teamGames[t.Id] = 0;
-        var finalMatchups = new List<(string home, string away)>();
-
-        foreach (var m in matchups)
-        {
-            if (teamGames.GetValueOrDefault(m.home) < 17 && teamGames.GetValueOrDefault(m.away) < 17)
-            {
-                finalMatchups.Add(m);
-                teamGames[m.home]++;
-                teamGames[m.away]++;
-            }
-        }
-
-        return finalMatchups;
-    }
-
-    private static List<(string, string)> DeduplicateMatchups(List<(string home, string away)> matchups)
-    {
-        var seen = new HashSet<(string, string)>();
-        var result = new List<(string, string)>();
-
-        foreach (var m in matchups)
-        {
-            if (seen.Add(m))
-                result.Add(m);
-        }
-
-        return result;
-    }
-
-    private static bool HasMatchup(List<(string home, string away)> matchups, string teamA, string teamB)
-    {
-        return matchups.Any(m =>
-            (m.home == teamA && m.away == teamB) ||
-            (m.home == teamB && m.away == teamA));
+        return ranks;
     }
 
     // --- Private: Week Assignment ---
 
     private static List<Game> AssignWeeks(
-        List<(string home, string away)> matchups, List<Team> teams, int season, Random rng)
+        List<(string home, string away)> matchups, List<Team> teams,
+        Dictionary<(Conference, Division), List<Team>> divisions,
+        int season, Random rng)
     {
         int totalWeeks = 18;
-        var games = new List<Game>();
-
-        // Assign bye weeks: each team gets 1 bye in weeks 5-14
         var byeWeeks = AssignByeWeeks(teams, rng);
 
-        // Shuffle matchups for variety
-        var shuffled = matchups.OrderBy(_ => rng.Next()).ToList();
-
-        // Track which week each team plays
-        var teamWeekUsed = new Dictionary<string, HashSet<int>>();
-        foreach (var t in teams)
+        // Build divisional pairs set for week 18 constraint
+        var divisionalPairs = new HashSet<(string, string)>();
+        foreach (var divTeams in divisions.Values)
         {
-            teamWeekUsed[t.Id] = new HashSet<int>();
-            teamWeekUsed[t.Id].Add(byeWeeks[t.Id]); // block bye week
+            for (int i = 0; i < divTeams.Count; i++)
+            for (int j = i + 1; j < divTeams.Count; j++)
+            {
+                divisionalPairs.Add((divTeams[i].Id, divTeams[j].Id));
+                divisionalPairs.Add((divTeams[j].Id, divTeams[i].Id));
+            }
         }
 
-        // Greedy assignment
-        foreach (var (home, away) in shuffled)
+        // --- State arrays ---
+        var gameWeek = new int[matchups.Count]; // matchup index → assigned week (-1 = unassigned)
+        var used = new Dictionary<string, HashSet<int>>();
+        var teamWeekGame = new Dictionary<string, Dictionary<int, int>>(); // team → week → matchup index
+
+        // --- Local helpers ---
+        void ResetState()
         {
-            bool assigned = false;
-
-            for (int week = 1; week <= totalWeeks; week++)
+            Array.Fill(gameWeek, -1);
+            foreach (var t in teams)
             {
-                if (!teamWeekUsed[home].Contains(week) && !teamWeekUsed[away].Contains(week))
-                {
-                    var game = new Game
-                    {
-                        Season = season,
-                        Week = week,
-                        HomeTeamId = home,
-                        AwayTeamId = away,
-                    };
-                    games.Add(game);
-                    teamWeekUsed[home].Add(week);
-                    teamWeekUsed[away].Add(week);
-                    assigned = true;
-                    break;
-                }
+                used[t.Id] = new HashSet<int> { byeWeeks[t.Id] };
+                teamWeekGame[t.Id] = new Dictionary<int, int>();
             }
+        }
 
-            if (!assigned)
+        bool CanPlace(int gi, int week)
+        {
+            var (h, a) = matchups[gi];
+            return !used[h].Contains(week) && !used[a].Contains(week);
+        }
+
+        void Place(int gi, int week)
+        {
+            var (h, a) = matchups[gi];
+            gameWeek[gi] = week;
+            used[h].Add(week);
+            used[a].Add(week);
+            teamWeekGame[h][week] = gi;
+            teamWeekGame[a][week] = gi;
+        }
+
+        void Unplace(int gi)
+        {
+            int w = gameWeek[gi];
+            if (w < 0) return;
+            var (h, a) = matchups[gi];
+            used[h].Remove(w);
+            used[a].Remove(w);
+            teamWeekGame[h].Remove(w);
+            teamWeekGame[a].Remove(w);
+            gameWeek[gi] = -1;
+        }
+
+        string GetOpponent(int gi, string teamId)
+        {
+            var (h, a) = matchups[gi];
+            return h == teamId ? a : h;
+        }
+
+        bool HasConsecutiveViolation(int gi, int week)
+        {
+            var (h, a) = matchups[gi];
+            var sched = teamWeekGame[h];
+            if (sched.TryGetValue(week - 1, out int prevGi) && prevGi != gi
+                && GetOpponent(prevGi, h) == a) return true;
+            if (sched.TryGetValue(week + 1, out int nextGi) && nextGi != gi
+                && GetOpponent(nextGi, h) == a) return true;
+            return false;
+        }
+
+        // ===========================================
+        // Phase 1: Place ALL games (greedy + swap)
+        // Only constraints: bye weeks + max 1 game per team per week
+        // No week-18 or consecutive-opponent constraints yet
+        // ===========================================
+        int bestMissed = int.MaxValue;
+        int[]? bestAssignment = null;
+
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            ResetState();
+            var order = Enumerable.Range(0, matchups.Count).OrderBy(_ => rng.Next()).ToList();
+            int missed = 0;
+
+            foreach (int gi in order)
             {
-                // Fallback: find any open week
-                for (int week = 1; week <= totalWeeks; week++)
+                bool placed = false;
+                foreach (int w in Enumerable.Range(1, totalWeeks).OrderBy(_ => rng.Next()))
                 {
-                    if (!teamWeekUsed[home].Contains(week) && !teamWeekUsed[away].Contains(week))
+                    if (CanPlace(gi, w))
                     {
-                        games.Add(new Game { Season = season, Week = week, HomeTeamId = home, AwayTeamId = away });
-                        teamWeekUsed[home].Add(week);
-                        teamWeekUsed[away].Add(week);
+                        Place(gi, w);
+                        placed = true;
                         break;
                     }
                 }
+                if (!placed) missed++;
+            }
+
+            if (missed == 0) { bestMissed = 0; break; }
+            if (missed < bestMissed)
+            {
+                bestMissed = missed;
+                bestAssignment = (int[])gameWeek.Clone();
             }
         }
 
+        // Swap fallback for any unassigned games from best attempt
+        if (bestMissed > 0)
+        {
+            ResetState();
+            for (int i = 0; i < matchups.Count; i++)
+            {
+                if (bestAssignment![i] > 0) Place(i, bestAssignment[i]);
+            }
+
+            var unassigned = Enumerable.Range(0, matchups.Count)
+                .Where(i => gameWeek[i] < 0)
+                .OrderBy(_ => rng.Next())
+                .ToList();
+
+            foreach (int gi in unassigned)
+            {
+                var (home, away) = matchups[gi];
+                bool resolved = false;
+
+                for (int w = 1; w <= totalWeeks && !resolved; w++)
+                {
+                    if (CanPlace(gi, w))
+                    {
+                        Place(gi, w);
+                        resolved = true;
+                        continue;
+                    }
+
+                    bool hFree = !used[home].Contains(w);
+                    bool aFree = !used[away].Contains(w);
+                    if (!hFree && !aFree) continue;
+
+                    string blocker = hFree ? away : home;
+                    if (!teamWeekGame[blocker].TryGetValue(w, out int blockingGi)) continue;
+
+                    int origWeek = gameWeek[blockingGi];
+                    Unplace(blockingGi);
+
+                    if (!CanPlace(gi, w)) { Place(blockingGi, origWeek); continue; }
+
+                    bool movedBlocker = false;
+                    foreach (int altW in Enumerable.Range(1, totalWeeks)
+                        .Where(ww => ww != w).OrderBy(_ => rng.Next()))
+                    {
+                        if (CanPlace(blockingGi, altW))
+                        {
+                            Place(blockingGi, altW);
+                            Place(gi, w);
+                            resolved = true;
+                            movedBlocker = true;
+                            break;
+                        }
+                    }
+
+                    if (!movedBlocker) Place(blockingGi, origWeek);
+                }
+
+                if (!resolved)
+                    Godot.GD.Print($"Schedule WARNING: Could not place {home} vs {away}");
+            }
+        }
+
+        // Perturb-and-retry: randomly displace placed games to create slack
+        // for any remaining unassigned games (handles zero-slack scheduling)
+        var stillUnassigned = Enumerable.Range(0, matchups.Count)
+            .Where(i => gameWeek[i] < 0).ToList();
+
+        for (int repair = 0; repair < 50 && stillUnassigned.Count > 0; repair++)
+        {
+            var savedState = (int[])gameWeek.Clone();
+            int prevCount = stillUnassigned.Count;
+
+            // Unplace ~15 random games to create slack
+            var toDisplace = Enumerable.Range(0, matchups.Count)
+                .Where(i => gameWeek[i] > 0)
+                .OrderBy(_ => rng.Next())
+                .Take(15)
+                .ToList();
+
+            foreach (int pgi in toDisplace)
+                Unplace(pgi);
+
+            // Re-run greedy on all unplaced games (unassigned + displaced)
+            var toPlace = Enumerable.Range(0, matchups.Count)
+                .Where(i => gameWeek[i] < 0)
+                .OrderBy(_ => rng.Next())
+                .ToList();
+
+            foreach (int gi in toPlace)
+            {
+                if (gameWeek[gi] > 0) continue;
+                foreach (int w in Enumerable.Range(1, totalWeeks).OrderBy(_ => rng.Next()))
+                {
+                    if (CanPlace(gi, w)) { Place(gi, w); break; }
+                }
+            }
+
+            var newUnassigned = Enumerable.Range(0, matchups.Count)
+                .Where(i => gameWeek[i] < 0).ToList();
+
+            if (newUnassigned.Count < prevCount)
+            {
+                stillUnassigned = newUnassigned;
+            }
+            else
+            {
+                // No improvement — restore previous state
+                ResetState();
+                for (int i = 0; i < matchups.Count; i++)
+                {
+                    if (savedState[i] > 0) Place(i, savedState[i]);
+                }
+            }
+        }
+
+        if (stillUnassigned.Count > 0)
+            Godot.GD.Print($"Schedule WARNING: {stillUnassigned.Count} games could not be placed after all repair attempts");
+
+        // ===========================================
+        // Phase 2a: Week 18 = divisional games only
+        // Swap non-divisional week-18 games with divisional games from other weeks
+        // ===========================================
+        var week18NonDiv = Enumerable.Range(0, matchups.Count)
+            .Where(i => gameWeek[i] == 18 && !divisionalPairs.Contains(matchups[i]))
+            .OrderBy(_ => rng.Next())
+            .ToList();
+
+        foreach (int ndGi in week18NonDiv)
+        {
+            var candidates = Enumerable.Range(0, matchups.Count)
+                .Where(i => gameWeek[i] >= 1 && gameWeek[i] <= 17
+                    && divisionalPairs.Contains(matchups[i]))
+                .OrderBy(_ => rng.Next())
+                .ToList();
+
+            bool swapped = false;
+            foreach (int divGi in candidates)
+            {
+                int divWeek = gameWeek[divGi];
+                Unplace(ndGi);
+                Unplace(divGi);
+
+                if (CanPlace(ndGi, divWeek) && CanPlace(divGi, 18))
+                {
+                    Place(ndGi, divWeek);
+                    Place(divGi, 18);
+                    swapped = true;
+                    break;
+                }
+
+                // Restore both games to original weeks
+                Place(divGi, divWeek);
+                Place(ndGi, 18);
+            }
+
+            if (!swapped)
+            {
+                var (h, a) = matchups[ndGi];
+                Godot.GD.Print($"Schedule WARNING: Non-divisional game {h} vs {a} stuck in week 18");
+            }
+        }
+
+        // ===========================================
+        // Phase 2b: Fix consecutive-opponent violations
+        // Move games to eliminate same-opponent-in-consecutive-weeks
+        // ===========================================
+        for (int pass = 0; pass < 5; pass++)
+        {
+            bool anyFixed = false;
+
+            for (int gi = 0; gi < matchups.Count; gi++)
+            {
+                int w = gameWeek[gi];
+                if (w < 1) continue;
+                if (!HasConsecutiveViolation(gi, w)) continue;
+
+                Unplace(gi);
+                bool moved = false;
+
+                foreach (int altW in Enumerable.Range(1, totalWeeks)
+                    .Where(ww => ww != w).OrderBy(_ => rng.Next()))
+                {
+                    if (!CanPlace(gi, altW)) continue;
+
+                    Place(gi, altW);
+                    if (HasConsecutiveViolation(gi, altW))
+                    {
+                        Unplace(gi);
+                        continue;
+                    }
+
+                    moved = true;
+                    anyFixed = true;
+                    break;
+                }
+
+                if (!moved) Place(gi, w); // restore original
+            }
+
+            if (!anyFixed) break;
+        }
+
+        // ===========================================
+        // Build output
+        // ===========================================
+        var games = new List<Game>();
+        for (int i = 0; i < matchups.Count; i++)
+        {
+            if (gameWeek[i] > 0)
+            {
+                games.Add(new Game
+                {
+                    Season = season,
+                    Week = gameWeek[i],
+                    HomeTeamId = matchups[i].home,
+                    AwayTeamId = matchups[i].away,
+                });
+            }
+        }
         return games.OrderBy(g => g.Week).ToList();
     }
 
@@ -457,6 +701,98 @@ public static class ScheduleGenerator
         }
 
         return byes;
+    }
+
+    // --- Private: Schedule Verification ---
+
+    /// <summary>
+    /// Verifies schedule correctness. Returns (hardErrors, softWarnings).
+    /// Hard errors trigger regeneration; soft warnings are logged only.
+    /// </summary>
+    private static (List<string> errors, List<string> warnings) VerifySchedule(
+        List<Game> games, List<Team> teams,
+        Dictionary<(Conference, Division), List<Team>> divisions)
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        // Build per-team schedule: which weeks each team plays
+        var teamWeeks = new Dictionary<string, HashSet<int>>();
+        var gameCount = new Dictionary<string, int>();
+        foreach (var t in teams)
+        {
+            teamWeeks[t.Id] = new HashSet<int>();
+            gameCount[t.Id] = 0;
+        }
+
+        foreach (var g in games)
+        {
+            if (!teamWeeks[g.HomeTeamId].Add(g.Week))
+                errors.Add($"DUPLICATE: {g.HomeTeamId} has multiple games in week {g.Week}");
+            if (!teamWeeks[g.AwayTeamId].Add(g.Week))
+                errors.Add($"DUPLICATE: {g.AwayTeamId} has multiple games in week {g.Week}");
+            gameCount[g.HomeTeamId]++;
+            gameCount[g.AwayTeamId]++;
+        }
+
+        // 1. Each team plays exactly 17 games
+        foreach (var t in teams)
+        {
+            if (gameCount[t.Id] != 17)
+                errors.Add($"{t.FullName}: {gameCount[t.Id]} games (expected 17)");
+        }
+
+        // 2. All byes must be in weeks 5-14
+        foreach (var t in teams)
+        {
+            int byeCount = 0;
+            for (int w = 1; w <= 18; w++)
+            {
+                if (!teamWeeks[t.Id].Contains(w))
+                {
+                    byeCount++;
+                    if (w < 5 || w > 14)
+                        errors.Add($"{t.FullName}: bye in week {w} (must be 5-14)");
+                }
+            }
+            if (byeCount != 1)
+                errors.Add($"{t.FullName}: {byeCount} bye weeks (expected 1)");
+        }
+
+        // 3. Week 18 = divisional games only
+        var divPairs = new HashSet<(string, string)>();
+        foreach (var divTeams in divisions.Values)
+        {
+            for (int i = 0; i < divTeams.Count; i++)
+            for (int j = i + 1; j < divTeams.Count; j++)
+            {
+                divPairs.Add((divTeams[i].Id, divTeams[j].Id));
+                divPairs.Add((divTeams[j].Id, divTeams[i].Id));
+            }
+        }
+        foreach (var g in games.Where(g => g.Week == 18))
+        {
+            if (!divPairs.Contains((g.HomeTeamId, g.AwayTeamId)))
+                warnings.Add($"Week 18: non-divisional {g.HomeTeamId} vs {g.AwayTeamId}");
+        }
+
+        // 4. No consecutive opponents
+        foreach (var t in teams)
+        {
+            var weekOpp = new Dictionary<int, string>();
+            foreach (var g in games)
+            {
+                if (g.HomeTeamId == t.Id) weekOpp[g.Week] = g.AwayTeamId;
+                else if (g.AwayTeamId == t.Id) weekOpp[g.Week] = g.HomeTeamId;
+            }
+            for (int w = 1; w <= 17; w++)
+            {
+                if (weekOpp.TryGetValue(w, out var o1) && weekOpp.TryGetValue(w + 1, out var o2) && o1 == o2)
+                    warnings.Add($"{t.FullName}: same opponent in weeks {w} and {w + 1}");
+            }
+        }
+
+        return (errors, warnings);
     }
 
     // --- Private: Playoff Seeding ---

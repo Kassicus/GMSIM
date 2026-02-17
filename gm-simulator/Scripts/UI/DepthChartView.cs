@@ -3,6 +3,7 @@ using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
 using GMSimulator.UI.Components;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -80,8 +81,8 @@ public partial class DepthChartView : Control
                 Text = pos.ToString(),
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
-            header.AddThemeFontSizeOverride("font_size", 14);
-            header.Modulate = new Color(0.6f, 0.8f, 1.0f);
+            header.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
+            header.Modulate = ThemeColors.AccentText;
             column.AddChild(header);
 
             // Separator
@@ -117,8 +118,8 @@ public partial class DepthChartView : Control
             Text = GetDepthLabel(depthIndex),
             HorizontalAlignment = HorizontalAlignment.Center,
         };
-        depthLabel.AddThemeFontSizeOverride("font_size", 10);
-        depthLabel.Modulate = new Color(0.6f, 0.6f, 0.6f);
+        depthLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Caption);
+        depthLabel.Modulate = ThemeColors.TextTertiary;
         vbox.AddChild(depthLabel);
 
         if (depthIndex < playerIds.Count)
@@ -133,7 +134,7 @@ public partial class DepthChartView : Control
                     Text = TruncateName(player.FullName, 12),
                     HorizontalAlignment = HorizontalAlignment.Center,
                 };
-                nameLabel.AddThemeFontSizeOverride("font_size", 11);
+                nameLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
                 vbox.AddChild(nameLabel);
 
                 var ovrLabel = new Label
@@ -141,7 +142,7 @@ public partial class DepthChartView : Control
                     Text = player.Overall.ToString(),
                     HorizontalAlignment = HorizontalAlignment.Center,
                 };
-                ovrLabel.AddThemeFontSizeOverride("font_size", 13);
+                ovrLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Body);
                 ovrLabel.Modulate = OverallBadge.GetOverallColor(player.Overall);
                 vbox.AddChild(ovrLabel);
 
@@ -158,7 +159,7 @@ public partial class DepthChartView : Control
                 if (depthIndex > 0)
                 {
                     var upBtn = new Button { Text = "^", CustomMinimumSize = new Vector2(20, 16) };
-                    upBtn.AddThemeFontSizeOverride("font_size", 9);
+                    upBtn.AddThemeFontSizeOverride("font_size", ThemeFonts.Caption);
                     int capturedIdx = depthIndex;
                     Pos capturedPos = pos;
                     upBtn.Pressed += () => OnSwapDepth(capturedPos, capturedIdx, capturedIdx - 1);
@@ -173,8 +174,8 @@ public partial class DepthChartView : Control
                 Text = "(Empty)",
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
-            emptyLabel.AddThemeFontSizeOverride("font_size", 11);
-            emptyLabel.Modulate = new Color(0.4f, 0.4f, 0.4f);
+            emptyLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+            emptyLabel.Modulate = ThemeColors.TextPlaceholder;
             vbox.AddChild(emptyLabel);
         }
 

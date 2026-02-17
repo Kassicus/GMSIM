@@ -1,0 +1,55 @@
+[gd_scene load_steps=2 format=3 uid="uid://draft_board"]
+
+[ext_resource type="Script" path="res://Scripts/UI/DraftBoard.cs" id="1"]
+
+[node name="DraftBoard" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="HeaderLabel" type="Label" parent="MarginContainer/VBox/HeaderHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "YOUR DRAFT BOARD"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PosFilter" type="OptionButton" parent="MarginContainer/VBox/HeaderHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BoardList" type="VBoxContainer" parent="MarginContainer/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[connection signal="item_selected" from="MarginContainer/VBox/HeaderHBox/PosFilter" to="." method="OnFilterChanged"]

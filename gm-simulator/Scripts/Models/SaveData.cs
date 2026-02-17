@@ -43,7 +43,25 @@ public class SaveData
     // AI State
     public Dictionary<string, AIGMProfile> AIProfiles { get; set; } = new();
 
-    // Player's Scouting State
+    // Scouting & Draft State (Phase 5)
     public Dictionary<string, float> ScoutingProgress { get; set; } = new();
     public List<string> DraftBoardOrder { get; set; } = new();
+    public List<ScoutAssignment> ScoutAssignments { get; set; } = new();
+    public int DraftCurrentRound { get; set; }
+    public int DraftCurrentPick { get; set; }
+    public int ScoutingBudget { get; set; } = 1500;
+
+    // Trading State (Phase 6)
+    public List<TradeRecord> TradeHistory { get; set; } = new();
+    public List<string> TradeBlockPlayerIds { get; set; } = new();
+    public List<TradeProposal> PendingTradeProposals { get; set; } = new();
+    public Dictionary<string, float> TradeRelationships { get; set; } = new();
+
+    // Staff & Coaching State (Phase 7)
+    public List<string> CoachingMarketIds { get; set; } = new();
+
+    // Progression & AI State (Phase 8)
+    public List<SeasonAwards> AllAwards { get; set; } = new();
+    public List<string> RetiredPlayerIds { get; set; } = new();
+    public List<string> HallOfFameIds { get; set; } = new();
 }

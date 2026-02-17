@@ -1,6 +1,7 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -98,12 +99,7 @@ public partial class WeekSchedule : Control
 
         if (weekGames.Count == 0)
         {
-            var noGames = new Label
-            {
-                Text = "No games scheduled this week",
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            noGames.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            var noGames = UIFactory.CreateEmptyState("No games scheduled this week");
             _matchupList.AddChild(noGames);
             return;
         }
@@ -126,13 +122,10 @@ public partial class WeekSchedule : Control
 
             if (byeTeams.Count > 0)
             {
-                var byeLabel = new Label
-                {
-                    Text = $"BYE: {string.Join(", ", byeTeams)}",
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
-                byeLabel.AddThemeFontSizeOverride("font_size", 14);
-                byeLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.5f));
+                var byeLabel = UIFactory.CreateLabel(
+                    $"BYE: {string.Join(", ", byeTeams)}",
+                    ThemeFonts.BodyLarge, ThemeColors.Warning,
+                    align: HorizontalAlignment.Center);
                 _matchupList.AddChild(byeLabel);
 
                 var sep = new HSeparator();
@@ -150,8 +143,7 @@ public partial class WeekSchedule : Control
 
     private HBoxContainer CreateMatchupRow(Game game, GameManager gm)
     {
-        var row = new HBoxContainer();
-        row.AddThemeConstantOverride("separation", 8);
+        var row = UIFactory.CreateRow(ThemeSpacing.XS);
 
         var awayTeam = gm.GetTeam(game.AwayTeamId);
         var homeTeam = gm.GetTeam(game.HomeTeamId);
@@ -162,79 +154,48 @@ public partial class WeekSchedule : Control
         panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         if (isPlayerGame)
         {
-            var style = new StyleBoxFlat();
-            style.BgColor = new Color(0.15f, 0.25f, 0.4f, 0.5f);
-            style.SetCornerRadiusAll(4);
-            panel.AddThemeStyleboxOverride("panel", style);
+            panel.AddThemeStyleboxOverride("panel", ThemeStyles.HighlightRow());
         }
 
-        var innerHBox = new HBoxContainer();
-        innerHBox.AddThemeConstantOverride("separation", 8);
+        var innerHBox = UIFactory.CreateRow(ThemeSpacing.XS);
         innerHBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
         // Away team
-        var awayLabel = new Label
-        {
-            Text = awayTeam?.Abbreviation ?? "???",
-            CustomMinimumSize = new Vector2(50, 0),
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        awayLabel.AddThemeFontSizeOverride("font_size", 16);
-        if (game.IsCompleted && game.AwayScore > game.HomeScore)
-            awayLabel.AddThemeColorOverride("font_color", new Color(0.4f, 1f, 0.4f));
+        var awayWinColor = (game.IsCompleted && game.AwayScore > game.HomeScore)
+            ? ThemeColors.Success : (Color?)null;
+        var awayLabel = UIFactory.CreateLabel(
+            awayTeam?.Abbreviation ?? "???",
+            ThemeFonts.Subtitle, awayWinColor, 50, HorizontalAlignment.Right);
 
-        var awayRecord = new Label
-        {
-            Text = awayTeam != null ? $"({awayTeam.CurrentRecord.Wins}-{awayTeam.CurrentRecord.Losses})" : "",
-            CustomMinimumSize = new Vector2(50, 0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        awayRecord.AddThemeFontSizeOverride("font_size", 12);
-        awayRecord.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        var awayRecord = UIFactory.CreateLabel(
+            awayTeam != null ? $"({awayTeam.CurrentRecord.Wins}-{awayTeam.CurrentRecord.Losses})" : "",
+            ThemeFonts.ColumnHeader, ThemeColors.TextTertiary, 50, HorizontalAlignment.Left);
 
         // Score or "vs"
         Label centerLabel;
         if (game.IsCompleted)
         {
-            centerLabel = new Label
-            {
-                Text = $"{game.AwayScore}  -  {game.HomeScore}",
-                CustomMinimumSize = new Vector2(100, 0),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            centerLabel.AddThemeFontSizeOverride("font_size", 18);
+            centerLabel = UIFactory.CreateLabel(
+                $"{game.AwayScore}  -  {game.HomeScore}",
+                ThemeFonts.Title, null, 100, HorizontalAlignment.Center);
         }
         else
         {
-            centerLabel = new Label
-            {
-                Text = " @ ",
-                CustomMinimumSize = new Vector2(100, 0),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            centerLabel.AddThemeFontSizeOverride("font_size", 16);
-            centerLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            centerLabel = UIFactory.CreateLabel(
+                " @ ",
+                ThemeFonts.Subtitle, ThemeColors.TextTertiary, 100, HorizontalAlignment.Center);
         }
 
         // Home team
-        var homeLabel = new Label
-        {
-            Text = homeTeam?.Abbreviation ?? "???",
-            CustomMinimumSize = new Vector2(50, 0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        homeLabel.AddThemeFontSizeOverride("font_size", 16);
-        if (game.IsCompleted && game.HomeScore > game.AwayScore)
-            homeLabel.AddThemeColorOverride("font_color", new Color(0.4f, 1f, 0.4f));
+        var homeWinColor = (game.IsCompleted && game.HomeScore > game.AwayScore)
+            ? ThemeColors.Success : (Color?)null;
+        var homeLabel = UIFactory.CreateLabel(
+            homeTeam?.Abbreviation ?? "???",
+            ThemeFonts.Subtitle, homeWinColor, 50, HorizontalAlignment.Left);
 
-        var homeRecord = new Label
-        {
-            Text = homeTeam != null ? $"({homeTeam.CurrentRecord.Wins}-{homeTeam.CurrentRecord.Losses})" : "",
-            CustomMinimumSize = new Vector2(50, 0),
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        homeRecord.AddThemeFontSizeOverride("font_size", 12);
-        homeRecord.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        var homeRecord = UIFactory.CreateLabel(
+            homeTeam != null ? $"({homeTeam.CurrentRecord.Wins}-{homeTeam.CurrentRecord.Losses})" : "",
+            ThemeFonts.ColumnHeader, ThemeColors.TextTertiary, 50, HorizontalAlignment.Right);
 
         // Spacer
         var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };

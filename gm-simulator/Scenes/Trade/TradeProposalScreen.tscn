@@ -1,0 +1,139 @@
+[gd_scene load_steps=2 format=3 uid="uid://trade_proposal_screen"]
+
+[ext_resource type="Script" path="res://Scripts/UI/TradeProposalScreen.cs" id="1"]
+
+[node name="TradeProposalScreen" type="Window"]
+title = "Trade Proposal"
+size = Vector2i(950, 700)
+min_size = Vector2i(800, 600)
+wrap_controls = true
+exclusive = true
+script = ExtResource("1")
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HSplit" type="HSplitContainer" parent="Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 430
+
+[node name="LeftPanel" type="VBoxContainer" parent="Margin/VBox/HSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LeftTeamLabel" type="Label" parent="Margin/VBox/HSplit/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Your Team"
+
+[node name="LeftScroll" type="ScrollContainer" parent="Margin/VBox/HSplit/LeftPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LeftList" type="VBoxContainer" parent="Margin/VBox/HSplit/LeftPanel/LeftScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RightPanel" type="VBoxContainer" parent="Margin/VBox/HSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RightTeamLabel" type="Label" parent="Margin/VBox/HSplit/RightPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Other Team"
+
+[node name="RightScroll" type="ScrollContainer" parent="Margin/VBox/HSplit/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RightList" type="VBoxContainer" parent="Margin/VBox/HSplit/RightPanel/RightScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ValueSection" type="VBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 80)
+
+[node name="ValueHBox" type="HBoxContainer" parent="Margin/VBox/ValueSection"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="LeftValueLabel" type="Label" parent="Margin/VBox/ValueSection/ValueHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "You Give: 0 pts"
+
+[node name="RightValueLabel" type="Label" parent="Margin/VBox/ValueSection/ValueHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+text = "You Get: 0 pts"
+
+[node name="BarHBox" type="HBoxContainer" parent="Margin/VBox/ValueSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LeftBar" type="ProgressBar" parent="Margin/VBox/ValueSection/BarHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+value = 50.0
+show_percentage = false
+
+[node name="RightBar" type="ProgressBar" parent="Margin/VBox/ValueSection/BarHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+value = 50.0
+show_percentage = false
+
+[node name="AssessmentLabel" type="Label" parent="Margin/VBox/ValueSection"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "Select assets to trade"
+
+[node name="CapImpactLabel" type="Label" parent="Margin/VBox/ValueSection"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 12
+text = ""
+
+[node name="BottomBar" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="StatusLabel" type="Label" parent="Margin/VBox/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = ""
+
+[node name="ProposeBtn" type="Button" parent="Margin/VBox/BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(130, 0)
+text = "Propose Trade"
+
+[node name="CancelBtn" type="Button" parent="Margin/VBox/BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Cancel"
+
+[connection signal="pressed" from="Margin/VBox/BottomBar/ProposeBtn" to="." method="OnProposePressed"]
+[connection signal="pressed" from="Margin/VBox/BottomBar/CancelBtn" to="." method="OnCancelPressed"]
+[connection signal="close_requested" from="." to="." method="OnCancelPressed"]

@@ -1,6 +1,7 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -100,13 +101,13 @@ public partial class NegotiationScreen : Window
         if (guaranteed > totalValue)
         {
             _statusLabel.Text = "Guaranteed money cannot exceed total value.";
-            _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
             return;
         }
         if (signingBonus > guaranteed)
         {
             _statusLabel.Text = "Signing bonus cannot exceed guaranteed money.";
-            _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
             return;
         }
 
@@ -122,7 +123,7 @@ public partial class NegotiationScreen : Window
             if (!gm.SalaryCapManager.CanAffordContract(team, year1Hit))
             {
                 _statusLabel.Text = "Not enough cap space for this contract.";
-                _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+                _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
                 return;
             }
         }
@@ -145,7 +146,7 @@ public partial class NegotiationScreen : Window
         gm.FreeAgency.MakePlayerOffer(offer);
 
         _statusLabel.Text = "Offer submitted! It will be evaluated when the week advances.";
-        _statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+        _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
     }
 
     private void OnClosePressed() => QueueFree();

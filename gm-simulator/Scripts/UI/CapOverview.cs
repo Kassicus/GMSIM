@@ -1,5 +1,6 @@
 using Godot;
 using GMSimulator.Core;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -81,9 +82,9 @@ public partial class CapOverview : Control
 
         // Color available space
         if (available > 0)
-            _availableSpaceValue.Modulate = new Color(0.3f, 0.9f, 0.3f);
+            _availableSpaceValue.Modulate = ThemeColors.Success;
         else
-            _availableSpaceValue.Modulate = new Color(1.0f, 0.3f, 0.3f);
+            _availableSpaceValue.Modulate = ThemeColors.Danger;
 
         // Cap usage bar
         float usagePercent = adjustedCap > 0 ? (float)capUsed / adjustedCap * 100f : 0;
@@ -111,7 +112,7 @@ public partial class CapOverview : Control
             hbox.AddThemeConstantOverride("separation", 10);
 
             var rankLabel = new Label { Text = $"#{rank}" };
-            rankLabel.AddThemeFontSizeOverride("font_size", 14);
+            rankLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             rankLabel.CustomMinimumSize = new Vector2(30, 0);
             hbox.AddChild(rankLabel);
 
@@ -120,20 +121,20 @@ public partial class CapOverview : Control
                 Text = $"{player.Position} {player.FullName}",
                 Flat = true,
             };
-            nameBtn.AddThemeFontSizeOverride("font_size", 14);
+            nameBtn.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             nameBtn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
             string capturedId = player.Id;
             nameBtn.Pressed += () => EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayerSelected, capturedId);
             hbox.AddChild(nameBtn);
 
             var ovrLabel = new Label { Text = player.Overall.ToString() };
-            ovrLabel.AddThemeFontSizeOverride("font_size", 14);
+            ovrLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             ovrLabel.Modulate = Components.OverallBadge.GetOverallColor(player.Overall);
             ovrLabel.CustomMinimumSize = new Vector2(30, 0);
             hbox.AddChild(ovrLabel);
 
             var capLabel = new Label { Text = GameShell.FormatCurrency(capHit) };
-            capLabel.AddThemeFontSizeOverride("font_size", 14);
+            capLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             capLabel.CustomMinimumSize = new Vector2(80, 0);
             capLabel.HorizontalAlignment = HorizontalAlignment.Right;
             hbox.AddChild(capLabel);
@@ -159,22 +160,22 @@ public partial class CapOverview : Control
             string marker = year == currentYear ? " *" : "";
 
             var yearLabel = new Label { Text = $"{year}{marker}" };
-            yearLabel.AddThemeFontSizeOverride("font_size", 14);
+            yearLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             _projectionsGrid.AddChild(yearLabel);
 
             var capLabel = new Label { Text = GameShell.FormatCurrency(cap) };
-            capLabel.AddThemeFontSizeOverride("font_size", 14);
+            capLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             _projectionsGrid.AddChild(capLabel);
 
             var committedLabel = new Label { Text = GameShell.FormatCurrency(committed) };
-            committedLabel.AddThemeFontSizeOverride("font_size", 14);
+            committedLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             _projectionsGrid.AddChild(committedLabel);
 
             var availableLabel = new Label { Text = GameShell.FormatCurrency(available) };
-            availableLabel.AddThemeFontSizeOverride("font_size", 14);
+            availableLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             availableLabel.Modulate = available >= 0
-                ? new Color(0.3f, 0.9f, 0.3f)
-                : new Color(1.0f, 0.3f, 0.3f);
+                ? ThemeColors.Success
+                : ThemeColors.Danger;
             _projectionsGrid.AddChild(availableLabel);
         }
     }

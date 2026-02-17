@@ -1,13 +1,10 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI.Components;
 
-/// <summary>
-/// A single player row in the roster list. Created programmatically.
-/// Click emits EventBus.PlayerSelected.
-/// </summary>
 public partial class PlayerRowItem : Button
 {
     private string _playerId = string.Empty;
@@ -21,32 +18,31 @@ public partial class PlayerRowItem : Button
         row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         row.Alignment = HorizontalAlignment.Left;
 
-        var hbox = new HBoxContainer();
-        hbox.AddThemeConstantOverride("separation", 0);
+        var hbox = UIFactory.CreateRow(0);
         hbox.MouseFilter = MouseFilterEnum.Ignore;
         row.AddChild(hbox);
 
         // Position
-        AddLabel(hbox, player.Position.ToString(), 55, 13);
+        UIFactory.AddCell(hbox, player.Position.ToString(), 55, ThemeFonts.Body, ThemeColors.TextSecondary);
 
         // Name
-        AddLabel(hbox, player.FullName, 180, 13, expandFill: true);
+        UIFactory.AddCell(hbox, player.FullName, 180, ThemeFonts.Body, ThemeColors.TextPrimary, expandFill: true);
 
         // Archetype
-        AddLabel(hbox, player.Archetype.ToString(), 120, 13);
+        UIFactory.AddCell(hbox, player.Archetype.ToString(), 120, ThemeFonts.Body, ThemeColors.TextSecondary);
 
         // Overall (color-coded)
-        var ovrLabel = AddLabel(hbox, player.Overall.ToString(), 45, 14);
-        ovrLabel.Modulate = OverallBadge.GetOverallColor(player.Overall);
+        UIFactory.AddCell(hbox, player.Overall.ToString(), 45, ThemeFonts.BodyLarge,
+            ThemeColors.GetRatingColor(player.Overall));
 
         // Age
-        AddLabel(hbox, player.Age.ToString(), 40, 13);
+        UIFactory.AddCell(hbox, player.Age.ToString(), 40, ThemeFonts.Body, ThemeColors.TextSecondary);
 
         // Cap Hit
         string capHit = "--";
         if (player.CurrentContract != null)
             capHit = GameShell.FormatCurrency(player.CurrentContract.GetCapHit(currentYear));
-        AddLabel(hbox, capHit, 90, 13);
+        UIFactory.AddCell(hbox, capHit, 90, ThemeFonts.Body, ThemeColors.TextSecondary);
 
         // Status
         string status = player.RosterStatus switch
@@ -56,14 +52,15 @@ public partial class PlayerRowItem : Button
             Models.Enums.RosterStatus.InjuredReserve => "IR",
             _ => player.RosterStatus.ToString(),
         };
-        var statusLabel = AddLabel(hbox, status, 60, 13);
-        if (player.RosterStatus == Models.Enums.RosterStatus.InjuredReserve)
-            statusLabel.Modulate = new Color(1.0f, 0.3f, 0.3f);
-        else if (player.RosterStatus == Models.Enums.RosterStatus.PracticeSquad)
-            statusLabel.Modulate = new Color(0.7f, 0.7f, 0.7f);
+        Color statusColor = player.RosterStatus switch
+        {
+            Models.Enums.RosterStatus.InjuredReserve => ThemeColors.Danger,
+            Models.Enums.RosterStatus.PracticeSquad => ThemeColors.TextTertiary,
+            _ => ThemeColors.TextSecondary,
+        };
+        UIFactory.AddCell(hbox, status, 60, ThemeFonts.Body, statusColor);
 
         // Contract year indicator
-        string yrText = "";
         if (player.CurrentContract != null)
         {
             var contractYear = player.CurrentContract.Years
@@ -71,28 +68,29 @@ public partial class PlayerRowItem : Button
             if (contractYear != null)
             {
                 int remaining = player.CurrentContract.TotalYears - contractYear.YearNumber + 1;
-                yrText = $"{remaining}yr";
-                if (remaining == 1) // Final year
-                    statusLabel = AddLabel(hbox, yrText, 40, 12, new Color(1.0f, 0.3f, 0.3f));
-                else if (remaining == 2) // Penultimate year
-                    statusLabel = AddLabel(hbox, yrText, 40, 12, new Color(1.0f, 0.85f, 0.0f));
-                else
-                    AddLabel(hbox, yrText, 40, 12);
+                string yrText = $"{remaining}yr";
+                Color yrColor = remaining switch
+                {
+                    1 => ThemeColors.Danger,
+                    2 => ThemeColors.Warning,
+                    _ => ThemeColors.TextTertiary,
+                };
+                UIFactory.AddCell(hbox, yrText, 40, ThemeFonts.Small, yrColor);
             }
             else
             {
-                AddLabel(hbox, "", 40, 12);
+                UIFactory.AddCell(hbox, "", 40, ThemeFonts.Small);
             }
         }
         else
         {
-            AddLabel(hbox, "", 40, 12);
+            UIFactory.AddCell(hbox, "", 40, ThemeFonts.Small);
         }
 
         // Injury indicator
         if (player.CurrentInjury != null)
         {
-            AddLabel(hbox, "INJ", 30, 12, new Color(1.0f, 0.3f, 0.3f));
+            UIFactory.AddCell(hbox, "INJ", 30, ThemeFonts.Small, ThemeColors.Danger);
         }
 
         row.Pressed += () =>
@@ -101,23 +99,5 @@ public partial class PlayerRowItem : Button
         };
 
         return row;
-    }
-
-    private static Label AddLabel(HBoxContainer parent, string text, float minWidth, int fontSize,
-        Color? color = null, bool expandFill = false)
-    {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(minWidth, 0),
-            MouseFilter = MouseFilterEnum.Ignore,
-        };
-        label.AddThemeFontSizeOverride("font_size", fontSize);
-        if (expandFill)
-            label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        if (color.HasValue)
-            label.Modulate = color.Value;
-        parent.AddChild(label);
-        return label;
     }
 }

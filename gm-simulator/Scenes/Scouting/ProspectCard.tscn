@@ -1,0 +1,112 @@
+[gd_scene load_steps=2 format=3 uid="uid://prospect_card"]
+
+[ext_resource type="Script" path="res://Scripts/UI/ProspectCard.cs" id="1"]
+
+[node name="ProspectCard" type="Window"]
+title = "Prospect Profile"
+size = Vector2i(500, 650)
+min_size = Vector2i(400, 500)
+script = ExtResource("1")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Player Name"
+
+[node name="InfoLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+text = "QB | Alabama | Age 21 | 6'3\" 220 lbs"
+
+[node name="GradeHBox" type="HBoxContainer" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="GradeLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox/GradeHBox"]
+layout_mode = 2
+text = "Scouting: Unscouted"
+
+[node name="GradeBar" type="ProgressBar" parent="MarginContainer/ScrollContainer/VBox/GradeHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(150, 0)
+max_value = 100.0
+
+[node name="ProjectedLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+text = "Projected: Round 1"
+
+[node name="HSeparator1" type="HSeparator" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="CombineHeader" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "COMBINE RESULTS"
+
+[node name="CombineLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+text = "No combine data."
+
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="AttrsHeader" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "ATTRIBUTES"
+
+[node name="AttrsGrid" type="GridContainer" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+columns = 4
+
+[node name="HSeparator3" type="HSeparator" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="StrengthsHeader" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "STRENGTHS / WEAKNESSES"
+
+[node name="StrengthsLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Not yet scouted."
+
+[node name="RedFlagsLabel" type="Label" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="ButtonHBox" type="HBoxContainer" parent="MarginContainer/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="AssignScoutBtn" type="Button" parent="MarginContainer/ScrollContainer/VBox/ButtonHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+text = "Assign Scout"
+
+[node name="CloseBtn" type="Button" parent="MarginContainer/ScrollContainer/VBox/ButtonHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Close"
+
+[connection signal="pressed" from="MarginContainer/ScrollContainer/VBox/ButtonHBox/CloseBtn" to="." method="OnClosePressed"]
+[connection signal="close_requested" from="." to="." method="OnClosePressed"]

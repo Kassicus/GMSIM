@@ -2,6 +2,7 @@ using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -68,9 +69,9 @@ public partial class PostGameReport : Window
 
         // Highlight winner
         if (_result.AwayScore > _result.HomeScore)
-            _awayScoreLabel.AddThemeColorOverride("font_color", new Color(0.4f, 1f, 0.4f));
+            _awayScoreLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
         else if (_result.HomeScore > _result.AwayScore)
-            _homeScoreLabel.AddThemeColorOverride("font_color", new Color(0.4f, 1f, 0.4f));
+            _homeScoreLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
 
         PopulateQuarterScores(awayTeam, homeTeam);
         PopulatePlayerOfTheGame(gm);
@@ -112,7 +113,7 @@ public partial class PostGameReport : Window
         if (_result == null) return;
 
         var potgHeader = new Label { Text = "PLAYER OF THE GAME" };
-        potgHeader.AddThemeFontSizeOverride("font_size", 16);
+        potgHeader.AddThemeFontSizeOverride("font_size", ThemeFonts.Subtitle);
         _potgSection.AddChild(potgHeader);
 
         if (_result.PlayerOfTheGameId != null)
@@ -122,7 +123,7 @@ public partial class PostGameReport : Window
             string line = _result.PlayerOfTheGameLine ?? "";
 
             var potgLabel = new Label { Text = $"{name} — {line}" };
-            potgLabel.AddThemeFontSizeOverride("font_size", 14);
+            potgLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
             _potgSection.AddChild(potgLabel);
         }
     }
@@ -132,7 +133,7 @@ public partial class PostGameReport : Window
         if (_result == null) return;
 
         var header = new Label { Text = "TEAM STATS" };
-        header.AddThemeFontSizeOverride("font_size", 16);
+        header.AddThemeFontSizeOverride("font_size", ThemeFonts.Subtitle);
         _teamStatsSection.AddChild(header);
 
         var grid = new GridContainer { Columns = 3 };
@@ -161,14 +162,14 @@ public partial class PostGameReport : Window
         if (_result == null || _result.KeyPlays.Count == 0) return;
 
         var header = new Label { Text = "KEY PLAYS" };
-        header.AddThemeFontSizeOverride("font_size", 16);
+        header.AddThemeFontSizeOverride("font_size", ThemeFonts.Subtitle);
         _keyPlaysSection.AddChild(header);
 
         foreach (var play in _result.KeyPlays.Take(8))
         {
             var playLabel = new Label { Text = $"  {play}" };
-            playLabel.AddThemeFontSizeOverride("font_size", 12);
-            playLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.8f));
+            playLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+            playLabel.AddThemeColorOverride("font_color", ThemeColors.TextSecondary);
             _keyPlaysSection.AddChild(playLabel);
         }
     }
@@ -295,7 +296,7 @@ public partial class PostGameReport : Window
 
     private void AddStatRow(GridContainer grid, string awayVal, string statName, string homeVal, bool isHeader = false)
     {
-        int fontSize = isHeader ? 14 : 13;
+        int fontSize = isHeader ? ThemeFonts.BodyLarge : ThemeFonts.Body;
 
         var awayLabel = new Label
         {
@@ -312,7 +313,7 @@ public partial class PostGameReport : Window
             CustomMinimumSize = new Vector2(160, 0)
         };
         nameLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        nameLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
+        nameLabel.AddThemeColorOverride("font_color", ThemeColors.TextSecondary);
 
         var homeLabel = new Label
         {
@@ -370,9 +371,9 @@ public partial class PostGameReport : Window
             CustomMinimumSize = new Vector2(minWidth, 0),
             HorizontalAlignment = align
         };
-        label.AddThemeFontSizeOverride("font_size", isHeader ? 12 : 13);
+        label.AddThemeFontSizeOverride("font_size", isHeader ? ThemeFonts.Small : ThemeFonts.Body);
         if (isHeader)
-            label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            label.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
         hbox.AddChild(label);
     }
 

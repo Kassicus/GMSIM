@@ -4,7 +4,7 @@ namespace GMSimulator.Core;
 
 public class CalendarSystem
 {
-    public int CurrentYear { get; set; } = 2025;
+    public int CurrentYear { get; set; } = 2026;
     public GamePhase CurrentPhase { get; set; } = GamePhase.PostSeason;
     public int CurrentWeek { get; set; } = 1;
 

@@ -3,6 +3,7 @@ using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
 using GMSimulator.Systems;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -102,7 +103,7 @@ public partial class FreeAgentMarket : Control
                 Text = "Free agency is not currently active.",
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            msgLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            msgLabel.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
             _playerList.AddChild(msgLabel);
             return;
         }
@@ -125,7 +126,7 @@ public partial class FreeAgentMarket : Control
                 Text = "No free agents match the current filters.",
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            noResults.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            noResults.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
             _playerList.AddChild(noResults);
             return;
         }
@@ -144,8 +145,8 @@ public partial class FreeAgentMarket : Control
                 Text = $"...and {freeAgents.Count - 100} more. Use filters to narrow results.",
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            moreLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            moreLabel.AddThemeFontSizeOverride("font_size", 12);
+            moreLabel.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
+            moreLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
             _playerList.AddChild(moreLabel);
         }
     }
@@ -163,7 +164,7 @@ public partial class FreeAgentMarket : Control
         AddCell(hbox, player.Position.ToString(), 50, HorizontalAlignment.Center);
 
         var ovrLabel = AddCell(hbox, player.Overall.ToString(), 45, HorizontalAlignment.Center);
-        ovrLabel.AddThemeColorOverride("font_color", GetOvrColor(player.Overall));
+        ovrLabel.AddThemeColorOverride("font_color", ThemeColors.GetRatingColor(player.Overall));
 
         AddCell(hbox, tier.ToString(), 70, HorizontalAlignment.Center);
         AddCell(hbox, GameShell.FormatCurrency(estimatedValue) + "/yr", 100, HorizontalAlignment.Right);
@@ -217,39 +218,14 @@ public partial class FreeAgentMarket : Control
 
     private void AddHeaderCell(string text, int width)
     {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(width, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        label.AddThemeFontSizeOverride("font_size", 12);
-        label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        var label = UIFactory.CreateColumnHeader(text, width);
         _columnHeaders.AddChild(label);
     }
 
     private Label AddCell(HBoxContainer hbox, string text, int width, HorizontalAlignment align)
     {
-        var label = new Label
-        {
-            Text = text,
-            CustomMinimumSize = new Vector2(width, 0),
-            HorizontalAlignment = align
-        };
-        label.AddThemeFontSizeOverride("font_size", 13);
-        hbox.AddChild(label);
-        return label;
+        return UIFactory.AddCell(hbox, text, width, ThemeFonts.Body, align: align);
     }
 
-    private static Color GetOvrColor(int ovr)
-    {
-        return ovr switch
-        {
-            >= 90 => new Color(0.3f, 1f, 0.3f),
-            >= 80 => new Color(0.5f, 0.9f, 0.3f),
-            >= 70 => new Color(0.9f, 0.9f, 0.3f),
-            >= 60 => new Color(0.9f, 0.6f, 0.3f),
-            _ => new Color(0.9f, 0.3f, 0.3f),
-        };
-    }
+    private static Color GetOvrColor(int ovr) => ThemeColors.GetRatingColor(ovr);
 }

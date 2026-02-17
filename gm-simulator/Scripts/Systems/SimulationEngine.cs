@@ -14,6 +14,7 @@ public class SimulationEngine
     private readonly Func<string, Coach?> _getCoach;
 
     private readonly InjurySystem _injurySystem;
+    private readonly StaffSystem? _staffSystem;
 
     private static readonly Dictionary<Position, float> PositionWeights = new()
     {
@@ -34,7 +35,8 @@ public class SimulationEngine
         Func<string, Player?> getPlayer,
         Func<string, Team?> getTeam,
         Func<string, Coach?> getCoach,
-        InjurySystem injurySystem)
+        InjurySystem injurySystem,
+        StaffSystem? staffSystem = null)
     {
         _getTeams = getTeams;
         _getPlayers = getPlayers;
@@ -44,6 +46,7 @@ public class SimulationEngine
         _getTeam = getTeam;
         _getCoach = getCoach;
         _injurySystem = injurySystem;
+        _staffSystem = staffSystem;
     }
 
     /// <summary>
@@ -779,11 +782,14 @@ public class SimulationEngine
 
     private float GetCoachingModifier(Team team)
     {
+        // Use StaffSystem for full coaching impact (HC + OC + DC + scheme fit)
+        if (_staffSystem != null)
+            return _staffSystem.GetCoachingSimModifier(team);
+
+        // Fallback: HC GameManagement only (±5)
         if (team.HeadCoachId == null) return 0;
         var hc = _getCoach(team.HeadCoachId);
         if (hc == null) return 0;
-
-        // Map GameManagement (40-89 range) to [-5, +5]
         return (hc.GameManagement - 65f) / 5f;
     }
 

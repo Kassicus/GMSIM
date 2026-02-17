@@ -23,7 +23,7 @@ grow_vertical = 2
 
 [node name="TopBar" type="PanelContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 56)
 
 [node name="TopBarHBox" type="HBoxContainer" parent="VBox/TopBar"]
 layout_mode = 2
@@ -54,6 +54,11 @@ text = "Cap: --"
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="SettingsButton" type="Button" parent="VBox/TopBar/TopBarHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Settings"
+
 [node name="SaveButton" type="Button" parent="VBox/TopBar/TopBarHBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(80, 0)
@@ -71,11 +76,11 @@ text = "Advance >"
 
 [node name="NavBar" type="PanelContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 44)
 
 [node name="NavHBox" type="HBoxContainer" parent="VBox/NavBar"]
 layout_mode = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
 
 [node name="DashboardBtn" type="Button" parent="VBox/NavBar/NavHBox"]
 layout_mode = 2
@@ -106,6 +111,13 @@ toggle_mode = true
 button_group = SubResource("nav_group")
 text = "Cap Space"
 
+[node name="StaffBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Staff"
+
 [node name="ScheduleBtn" type="Button" parent="VBox/NavBar/NavHBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(100, 0)
@@ -127,10 +139,65 @@ toggle_mode = true
 button_group = SubResource("nav_group")
 text = "Free Agency"
 
+[node name="TradeBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Trade"
+
+[node name="ScoutingBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Scouting"
+
+[node name="DraftBoardBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Draft Board"
+
+[node name="TransactionLogBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Log"
+
+[node name="LeagueLeadersBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Leaders"
+
+[node name="TeamHistoryBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "History"
+
 [node name="ContentArea" type="Control" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
 
+[node name="NotificationContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -320.0
+offset_top = 60.0
+offset_right = -20.0
+grow_horizontal = 0
+theme_override_constants/separation = 8
+mouse_filter = 2
+
+[connection signal="pressed" from="VBox/TopBar/TopBarHBox/SettingsButton" to="." method="OnSettingsPressed"]
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/SaveButton" to="." method="OnSavePressed"]
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/MenuButton" to="." method="OnMenuPressed"]
 [connection signal="pressed" from="VBox/TopBar/TopBarHBox/AdvanceButton" to="." method="OnAdvancePressed"]
@@ -138,6 +205,13 @@ size_flags_vertical = 3
 [connection signal="pressed" from="VBox/NavBar/NavHBox/RosterBtn" to="." method="OnNavRoster"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/DepthChartBtn" to="." method="OnNavDepthChart"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/CapBtn" to="." method="OnNavCap"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/StaffBtn" to="." method="OnNavStaff"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/ScheduleBtn" to="." method="OnNavSchedule"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/StandingsBtn" to="." method="OnNavStandings"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/FreeAgencyBtn" to="." method="OnNavFreeAgency"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/TradeBtn" to="." method="OnNavTrade"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/ScoutingBtn" to="." method="OnNavScouting"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/DraftBoardBtn" to="." method="OnNavDraftBoard"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/TransactionLogBtn" to="." method="OnNavTransactionLog"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/LeagueLeadersBtn" to="." method="OnNavLeagueLeaders"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/TeamHistoryBtn" to="." method="OnNavTeamHistory"]

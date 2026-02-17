@@ -34,6 +34,7 @@ public partial class GameManager : Node
 
     // Generation
     private PlayerGenerator? _playerGenerator;
+    private ProspectGenerator? _prospectGenerator;
 
     // Systems (Phase 2)
     public SalaryCapManager SalaryCapManager { get; private set; } = new();
@@ -46,6 +47,23 @@ public partial class GameManager : Node
     // Systems (Phase 4)
     public FreeAgencySystem FreeAgency { get; private set; } = null!;
     public int FreeAgencyWeekNumber { get; private set; }
+
+    // Systems (Phase 5)
+    public ScoutingSystem Scouting { get; private set; } = null!;
+    public DraftSystem Draft { get; private set; } = null!;
+    public List<string> DraftBoardOrder { get; set; } = new();
+
+    // Systems (Phase 6)
+    public TradeSystem Trading { get; private set; } = null!;
+
+    // Systems (Phase 7)
+    public StaffSystem Staff { get; private set; } = null!;
+
+    // Systems (Phase 8)
+    public ProgressionSystem Progression { get; private set; } = null!;
+    public AIGMController AIGM { get; private set; } = null!;
+    public List<SeasonAwards> AllAwards { get; private set; } = new();
+    public List<string> RetiredPlayerIds { get; private set; } = new();
 
     // Season State (Phase 3)
     public Season CurrentSeason { get; private set; } = new();
@@ -68,7 +86,7 @@ public partial class GameManager : Node
 
         Calendar = new CalendarSystem
         {
-            CurrentYear = 2025,
+            CurrentYear = 2026,
             CurrentPhase = GamePhase.PostSeason,
             CurrentWeek = 1
         };
@@ -94,6 +112,7 @@ public partial class GameManager : Node
         // Load data and generate league
         string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
         LoadTeams(dataPath);
+        LoadHistoricalStandings(dataPath);
         InitializePlayerGenerator(dataPath);
         InitializeSystems(dataPath);
         GenerateAllRosters();
@@ -145,6 +164,27 @@ public partial class GameManager : Node
         if (save.FreeAgentPool.Count > 0 || save.PendingOffers.Count > 0)
             FreeAgency.SetState(save.FreeAgentPool, save.PendingOffers, save.FreeAgencyWeek);
 
+        // Restore scouting & draft state
+        DraftBoardOrder = save.DraftBoardOrder;
+        if (save.ScoutAssignments.Count > 0)
+            Scouting.SetState(save.ScoutAssignments, save.ScoutingBudget);
+        if (save.DraftCurrentRound > 0)
+            Draft.SetState(save.DraftCurrentPick, save.DraftCurrentRound, save.DraftCurrentPick);
+
+        // Restore trade state
+        if (save.TradeHistory.Count > 0 || save.PendingTradeProposals.Count > 0
+            || save.TradeBlockPlayerIds.Count > 0)
+            Trading.SetState(save.TradeHistory, save.TradeBlockPlayerIds,
+                save.PendingTradeProposals, save.TradeRelationships);
+
+        // Restore coaching market state
+        if (save.CoachingMarketIds.Count > 0)
+            Staff.SetState(save.CoachingMarketIds);
+
+        // Restore progression & AI state
+        AllAwards = save.AllAwards;
+        RetiredPlayerIds = save.RetiredPlayerIds;
+
         IsGameActive = true;
     }
 
@@ -174,6 +214,18 @@ public partial class GameManager : Node
             FreeAgencyWeek = FreeAgencyWeekNumber,
             PendingOffers = FreeAgency?.GetState().Offers ?? new List<FreeAgentOffer>(),
             FreeAgentPool = FreeAgency?.GetState().Pool ?? new List<string>(),
+            DraftBoardOrder = DraftBoardOrder,
+            ScoutAssignments = Scouting?.GetState().Assignments?.ToList() ?? new List<ScoutAssignment>(),
+            ScoutingBudget = Scouting?.ScoutingBudget ?? 1500,
+            DraftCurrentRound = Draft?.GetState().PickIndex > 0 ? (Draft.GetCurrentPick()?.Round ?? 0) : 0,
+            DraftCurrentPick = Draft?.GetState().PickIndex ?? 0,
+            TradeHistory = Trading?.GetState().History ?? new List<TradeRecord>(),
+            TradeBlockPlayerIds = Trading?.GetState().Block ?? new List<string>(),
+            PendingTradeProposals = Trading?.GetState().Pending ?? new List<TradeProposal>(),
+            TradeRelationships = Trading?.GetState().Relationships ?? new Dictionary<string, float>(),
+            CoachingMarketIds = Staff?.GetState().MarketIds ?? new List<string>(),
+            AllAwards = AllAwards,
+            RetiredPlayerIds = RetiredPlayerIds,
         };
     }
 
@@ -190,6 +242,12 @@ public partial class GameManager : Node
         // Detect phase transition
         if (result.NewPhase != oldPhase)
             OnPhaseTransition(result.NewPhase);
+
+        // Process scouting year-round (as long as a draft class exists)
+        if (CurrentDraftClass.Count > 0)
+        {
+            Scouting.ProcessScoutingWeek();
+        }
 
         // Process free agency week
         if (Calendar.CurrentPhase == GamePhase.FreeAgency)
@@ -211,6 +269,12 @@ public partial class GameManager : Node
             Calendar.CurrentPhase == GamePhase.SuperBowl)
         {
             InjurySystem.TickInjuries();
+        }
+
+        // Process AI trades during trade window
+        if (Trading.IsTradeWindowOpen())
+        {
+            Trading.GenerateAITradeProposals();
         }
 
         if (result.YearChanged)
@@ -246,13 +310,48 @@ public partial class GameManager : Node
 
     private void OnPhaseTransition(GamePhase newPhase)
     {
+        // Emit phase change notification
+        if (SettingsManager.Current.ShowPhaseNotifications)
+        {
+            string phaseName = Calendar.GetPhaseDisplayName();
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.NotificationCreated,
+                "Phase Change", $"Entering {phaseName}", 1);
+        }
+
         switch (newPhase)
         {
+            case GamePhase.PostSeason:
+                RunCoachingCarousel();
+                RunEndOfSeasonProcessing();
+                break;
+            case GamePhase.CombineScouting:
+                StartCombineScouting();
+                break;
             case GamePhase.FreeAgency:
                 StartFreeAgency();
                 break;
             case GamePhase.PreDraft:
                 EndFreeAgency();
+                break;
+            case GamePhase.Draft:
+                StartDraft();
+                break;
+            case GamePhase.PostDraft:
+                EndDraft();
+                AIGM.RunAICuts();
+                AIGM.RunAIExtensions();
+                // Generate next year's draft class so scouting can begin immediately
+                if (_prospectGenerator != null)
+                {
+                    CurrentDraftClass = _prospectGenerator.GenerateDraftClass(Calendar.CurrentYear + 1, Rng);
+                    GD.Print($"Generated {CurrentDraftClass.Count} draft prospects for {Calendar.CurrentYear + 1}.");
+                }
+                Scouting.InitializeForDraftCycle();
+                DraftBoardOrder.Clear();
+                break;
+            case GamePhase.Preseason:
+                AIGM.SetAIDepthCharts();
+                AIGM.UpdateAIStrategies();
                 break;
             case GamePhase.RegularSeason:
                 GenerateSeasonSchedule();
@@ -264,6 +363,120 @@ public partial class GameManager : Node
                 SetupSuperBowl();
                 break;
         }
+    }
+
+    // --- Phase 7: Coaching Carousel ---
+
+    private void RunCoachingCarousel()
+    {
+        // Only run after an actual season has been played, not on initial game start
+        if (SeasonHistory.Count == 0 && CurrentSeason.Games.Count == 0) return;
+
+        var changes = Staff.RunCoachingCarousel();
+        foreach (var change in changes)
+            GD.Print($"Coaching Carousel: {change}");
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachingCarouselCompleted, Calendar.CurrentYear);
+    }
+
+    // --- Phase 8: End of Season Processing ---
+
+    private void RunEndOfSeasonProcessing()
+    {
+        // Only run after an actual season has been played
+        if (SeasonHistory.Count == 0 && CurrentSeason.Games.Count == 0) return;
+
+        int year = Calendar.CurrentYear;
+
+        // 1. Calculate awards (before progression so awards feed dev trait changes)
+        var awards = AwardsCalculator.Calculate(year, Players, Teams, CurrentSeason);
+        CurrentSeason.Awards = awards;
+        AllAwards.Add(awards);
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.AwardsCalculated, year);
+
+        if (awards.MvpId != null)
+        {
+            GD.Print($"Season Awards: MVP — {GetPlayer(awards.MvpId)?.FullName}");
+            if (SettingsManager.Current.ShowAwardNotifications)
+                EventBus.Instance?.EmitSignal(EventBus.SignalName.NotificationCreated,
+                    "Season MVP", $"{GetPlayer(awards.MvpId)?.FullName} wins MVP!", 2);
+        }
+        if (awards.DpoyId != null)
+        {
+            GD.Print($"Season Awards: DPOY — {GetPlayer(awards.DpoyId)?.FullName}");
+            if (SettingsManager.Current.ShowAwardNotifications)
+                EventBus.Instance?.EmitSignal(EventBus.SignalName.NotificationCreated,
+                    "Defensive POY", $"{GetPlayer(awards.DpoyId)?.FullName} wins DPOY!", 2);
+        }
+
+        // 2. Dev trait changes based on awards
+        Progression.ProcessDevTraitChanges(awards);
+
+        // 3. Run attribute progression
+        var report = Progression.RunOffseasonProgression();
+        GD.Print($"Progression: {report.Improved.Count} improved, {report.Declined.Count} declined");
+
+        // 4. Process retirements
+        var retirements = Progression.ProcessRetirements();
+        foreach (var (playerId, reason) in retirements)
+        {
+            RetiredPlayerIds.Add(playerId);
+            var p = GetPlayer(playerId);
+            GD.Print($"Retired: {p?.FullName ?? playerId} ({reason})");
+        }
+
+        // 5. Update owner patience & fan satisfaction for player's team
+        var playerTeam = GetPlayerTeam();
+        if (playerTeam != null)
+        {
+            var completedGames = CurrentSeason.Games.Where(g => g.IsCompleted && !g.IsPlayoff).ToList();
+            int wins = completedGames.Count(g =>
+                (g.HomeTeamId == playerTeam.Id && g.HomeScore > g.AwayScore) ||
+                (g.AwayTeamId == playerTeam.Id && g.AwayScore > g.HomeScore));
+            int losses = completedGames.Count(g =>
+                (g.HomeTeamId == playerTeam.Id && g.HomeScore < g.AwayScore) ||
+                (g.AwayTeamId == playerTeam.Id && g.AwayScore < g.HomeScore));
+
+            var playoffGames = CurrentSeason.Games.Where(g => g.IsPlayoff && g.IsCompleted).ToList();
+            bool madePlayoffs = playoffGames.Any(g =>
+                g.HomeTeamId == playerTeam.Id || g.AwayTeamId == playerTeam.Id);
+            bool madeSuperBowl = playoffGames.Any(g =>
+                g.Week >= 21 && (g.HomeTeamId == playerTeam.Id || g.AwayTeamId == playerTeam.Id));
+            bool wonSuperBowl = CurrentSeason.ChampionTeamId == playerTeam.Id;
+
+            Progression.UpdateOwnerPatience(playerTeam, wins, losses, madePlayoffs, madeSuperBowl);
+            Progression.UpdateFanSatisfaction(playerTeam, wins, madePlayoffs, wonSuperBowl);
+        }
+
+        // 6. Analyze team needs for all teams
+        AIGM.AnalyzeAllTeamNeeds();
+
+        // 7. Calculate division ranks before archiving
+        var divisionGroups = Teams.GroupBy(t => (t.Conference, t.Division));
+        foreach (var group in divisionGroups)
+        {
+            var ranked = group
+                .OrderByDescending(t => {
+                    int total = t.CurrentRecord.Wins + t.CurrentRecord.Losses + t.CurrentRecord.Ties;
+                    return total == 0 ? 0f : (t.CurrentRecord.Wins + t.CurrentRecord.Ties * 0.5f) / total;
+                })
+                .ThenByDescending(t => t.CurrentRecord.PointsFor - t.CurrentRecord.PointsAgainst)
+                .ThenByDescending(t => t.CurrentRecord.PointsFor)
+                .ToList();
+
+            for (int i = 0; i < ranked.Count; i++)
+                ranked[i].CurrentRecord.DivisionRank = i + 1; // 1-4
+        }
+
+        // 8. Archive team records to team history
+        foreach (var team in Teams)
+            team.SeasonHistory.Add(team.CurrentRecord);
+
+        // 9. Archive season and prepare for next year
+        SeasonHistory.Add(CurrentSeason);
+        CurrentSeason = new Season { Year = year + 1 };
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.ProgressionCompleted, year);
     }
 
     // --- Phase 4: Free Agency ---
@@ -306,12 +519,85 @@ public partial class GameManager : Node
         }
     }
 
+    // --- Phase 5: Scouting & Draft ---
+
+    private void StartCombineScouting()
+    {
+        // Generate draft class only if not already generated (PostDraft generates next year's class early)
+        if (CurrentDraftClass.Count == 0 && _prospectGenerator != null)
+        {
+            CurrentDraftClass = _prospectGenerator.GenerateDraftClass(Calendar.CurrentYear, Rng);
+            GD.Print($"Generated {CurrentDraftClass.Count} draft prospects for {Calendar.CurrentYear}.");
+            Scouting.InitializeForDraftCycle();
+        }
+
+        // Combine gives baseline scouting to all prospects
+        Scouting.AutoScoutCombine();
+
+        // Generate scouts for player team if none exist
+        if (Scouts.Count == 0)
+            GenerateScouts();
+    }
+
+    private void StartDraft()
+    {
+        Draft.InitializeDraft(Calendar.CurrentYear);
+    }
+
+    private void EndDraft()
+    {
+        var udfaResults = Draft.ProcessUDFA();
+        if (udfaResults.Count > 0)
+            GD.Print($"Signed {udfaResults.Count} UDFAs across the league.");
+
+        // Rebuild player lookup since new players were added
+        RebuildLookups();
+    }
+
+    private void GenerateScouts()
+    {
+        string[] scoutFirstNames = { "Mike", "Dave", "Tom", "Chris", "Steve", "Mark", "Jim", "Dan" };
+        string[] scoutLastNames = { "Reynolds", "Harrison", "Cooper", "Mitchell", "Brooks", "Palmer", "Walsh", "Grant" };
+        var specialties = Enum.GetValues<ScoutSpecialty>();
+        var regions = Enum.GetValues<ScoutRegion>();
+
+        for (int i = 0; i < 6; i++)
+        {
+            Scouts.Add(new Scout
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = $"{scoutFirstNames[Rng.Next(scoutFirstNames.Length)]} {scoutLastNames[Rng.Next(scoutLastNames.Length)]}",
+                Accuracy = 55 + Rng.Next(35),
+                Speed = 50 + Rng.Next(40),
+                Specialty = specialties[Rng.Next(specialties.Length)],
+                Region = regions[Rng.Next(regions.Length)],
+                Salary = 50000 + Rng.Next(50000),
+                Experience = Rng.Next(20),
+            });
+        }
+
+        GD.Print($"Generated {Scouts.Count} scouts.");
+    }
+
     // --- Phase 3: Season Schedule ---
 
     private void GenerateSeasonSchedule()
     {
         CurrentSeason = new Season { Year = Calendar.CurrentYear };
-        var games = ScheduleGenerator.GenerateRegularSeason(Teams, Calendar.CurrentYear, Rng);
+
+        // Build prior-year division ranks from team history
+        Dictionary<string, int>? priorRanks = null;
+        if (Teams.Any(t => t.SeasonHistory.Count > 0))
+        {
+            priorRanks = new Dictionary<string, int>();
+            foreach (var team in Teams)
+            {
+                var lastRecord = team.SeasonHistory.LastOrDefault();
+                priorRanks[team.Id] = lastRecord?.DivisionRank ?? 0;
+            }
+        }
+
+        var games = ScheduleGenerator.GenerateRegularSeason(Teams, Calendar.CurrentYear, Rng, priorRanks);
         CurrentSeason.Games.AddRange(games);
 
         // Reset all team records for new season
@@ -348,7 +634,20 @@ public partial class GameManager : Node
             ApplyPlayerStats(result);
 
             // Apply injuries
+            var injuredBefore = new HashSet<string>(
+                Players.Where(p => p.CurrentInjury != null && p.TeamId == PlayerTeamId).Select(p => p.Id));
             InjurySystem.ApplyInjuries(result, Calendar.CurrentYear, Calendar.CurrentWeek);
+
+            // Notify about player team injuries
+            if (SettingsManager.Current.ShowInjuryNotifications)
+            {
+                foreach (var p in Players.Where(p => p.CurrentInjury != null && p.TeamId == PlayerTeamId && !injuredBefore.Contains(p.Id)))
+                {
+                    var inj = p.CurrentInjury!;
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.NotificationCreated,
+                        "Player Injured", $"{p.FullName} — {inj.InjuryType} ({inj.WeeksRemaining} weeks)", 3);
+                }
+            }
 
             // Update team records
             UpdateTeamRecords(game);
@@ -574,10 +873,62 @@ public partial class GameManager : Node
         }
     }
 
+    private void LoadHistoricalStandings(string dataPath)
+    {
+        string path = Path.Combine(dataPath, "2025_standings.json");
+        if (!File.Exists(path))
+        {
+            GD.Print("No historical standings file found, skipping seed data.");
+            return;
+        }
+
+        string json = File.ReadAllText(path);
+        var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        int season = root.GetProperty("season").GetInt32();
+        int loaded = 0;
+
+        foreach (var entry in root.GetProperty("standings").EnumerateArray())
+        {
+            string teamId = entry.GetProperty("teamId").GetString() ?? "";
+            var team = GetTeam(teamId);
+            if (team == null)
+            {
+                GD.Print($"Historical standings: unknown team ID '{teamId}', skipping.");
+                continue;
+            }
+
+            var record = new TeamRecord
+            {
+                Season = season,
+                Wins = entry.GetProperty("wins").GetInt32(),
+                Losses = entry.GetProperty("losses").GetInt32(),
+                Ties = entry.GetProperty("ties").GetInt32(),
+                PointsFor = entry.GetProperty("pointsFor").GetInt32(),
+                PointsAgainst = entry.GetProperty("pointsAgainst").GetInt32(),
+                DivisionRank = entry.GetProperty("divisionRank").GetInt32(),
+                MadePlayoffs = entry.GetProperty("madePlayoffs").GetBoolean(),
+                PlayoffResult = entry.TryGetProperty("playoffResult", out var pr)
+                    && pr.ValueKind != JsonValueKind.Null
+                    ? pr.GetString()
+                    : null,
+            };
+
+            team.SeasonHistory.Add(record);
+            loaded++;
+        }
+
+        GD.Print($"Loaded historical standings for {loaded} teams (season {season}).");
+    }
+
     private void InitializePlayerGenerator(string dataPath)
     {
         _playerGenerator = new PlayerGenerator();
         _playerGenerator.LoadData(dataPath);
+
+        _prospectGenerator = new ProspectGenerator();
+        _prospectGenerator.LoadData(dataPath);
     }
 
     private void GenerateAllRosters()
@@ -737,6 +1088,16 @@ public partial class GameManager : Node
             GetPlayer,
             () => Rng);
 
+        Staff = new StaffSystem(
+            () => Teams,
+            () => Players,
+            () => Coaches,
+            () => Rng,
+            GetCoach,
+            GetTeam,
+            () => Calendar,
+            () => PlayerTeamId);
+
         SimEngine = new SimulationEngine(
             () => Teams,
             () => Players,
@@ -745,7 +1106,8 @@ public partial class GameManager : Node
             GetPlayer,
             GetTeam,
             GetCoach,
-            InjurySystem);
+            InjurySystem,
+            Staff);
 
         FreeAgency = new FreeAgencySystem(
             () => Teams,
@@ -758,6 +1120,58 @@ public partial class GameManager : Node
             RosterManager,
             SalaryCapManager,
             () => Calendar,
+            () => PlayerTeamId);
+
+        Scouting = new ScoutingSystem(
+            () => CurrentDraftClass,
+            () => Scouts,
+            () => Rng,
+            () => PlayerTeamId);
+
+        Draft = new DraftSystem(
+            () => Teams,
+            () => Players,
+            () => CurrentDraftClass,
+            () => AllDraftPicks,
+            () => AIProfiles,
+            () => Rng,
+            () => PlayerTeamId,
+            RosterManager,
+            SalaryCapManager,
+            () => Calendar);
+
+        Trading = new TradeSystem(
+            () => Teams,
+            () => Players,
+            () => AllDraftPicks,
+            () => AIProfiles,
+            () => Rng,
+            GetPlayer,
+            GetTeam,
+            RosterManager,
+            SalaryCapManager,
+            () => Calendar,
+            () => PlayerTeamId,
+            () => TransactionLog);
+
+        Progression = new ProgressionSystem(
+            () => Teams,
+            () => Players,
+            () => Rng,
+            GetPlayer,
+            GetTeam,
+            () => Calendar,
+            Staff);
+
+        AIGM = new AIGMController(
+            () => Teams,
+            () => Players,
+            () => Rng,
+            GetPlayer,
+            GetTeam,
+            () => AIProfiles,
+            RosterManager,
+            SalaryCapManager,
             () => PlayerTeamId);
     }
 

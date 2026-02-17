@@ -1,0 +1,55 @@
+[gd_scene load_steps=2 format=3 uid="uid://player_comparison"]
+
+[ext_resource type="Script" path="res://Scripts/UI/PlayerComparison.cs" id="1"]
+
+[node name="PlayerComparison" type="Window"]
+title = "Player Comparison"
+size = Vector2i(900, 700)
+visible = false
+wrap_controls = true
+script = ExtResource("1")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SelectionBar" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="Player1Select" type="OptionButton" parent="MarginContainer/VBox/SelectionBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(250, 0)
+
+[node name="VSLabel" type="Label" parent="MarginContainer/VBox/SelectionBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "VS"
+
+[node name="Player2Select" type="OptionButton" parent="MarginContainer/VBox/SelectionBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(250, 0)
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ComparisonContent" type="VBoxContainer" parent="MarginContainer/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4

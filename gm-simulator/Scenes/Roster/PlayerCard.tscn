@@ -161,11 +161,17 @@ layout_mode = 2
 custom_minimum_size = Vector2(80, 0)
 text = "Promote"
 
+[node name="CompareButton" type="Button" parent="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(90, 0)
+text = "Compare"
+
 [node name="CloseButton" type="Button" parent="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(80, 0)
 text = "Close"
 
+[connection signal="pressed" from="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox/CompareButton" to="." method="OnComparePressed"]
 [connection signal="pressed" from="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox/CutButton" to="." method="OnCutPressed"]
 [connection signal="pressed" from="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox/IRButton" to="." method="OnIRPressed"]
 [connection signal="pressed" from="PanelContainer/ScrollContainer/MarginContainer/VBox/ActionHBox/PSButton" to="." method="OnPSPressed"]

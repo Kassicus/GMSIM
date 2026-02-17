@@ -1,0 +1,142 @@
+[gd_scene load_steps=2 format=3 uid="uid://settings_panel"]
+
+[ext_resource type="Script" path="res://Scripts/UI/SettingsPanel.cs" id="1"]
+
+[node name="SettingsPanel" type="Window"]
+title = "Settings"
+size = Vector2i(500, 550)
+visible = false
+wrap_controls = true
+script = ExtResource("1")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SimHeader" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.345098, 0.65098, 1, 1)
+text = "SIMULATION"
+
+[node name="SimSpeedRow" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="SimSpeedLabel" type="Label" parent="MarginContainer/VBox/SimSpeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Sim Speed (ms)"
+
+[node name="SimSpeedSlider" type="HSlider" parent="MarginContainer/VBox/SimSpeedRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 0)
+min_value = 100.0
+max_value = 2000.0
+step = 100.0
+value = 500.0
+
+[node name="SimSpeedValue" type="Label" parent="MarginContainer/VBox/SimSpeedRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+text = "500"
+horizontal_alignment = 2
+
+[node name="AutoSaveHeader" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.345098, 0.65098, 1, 1)
+text = "AUTO-SAVE"
+
+[node name="AutoSaveEnabled" type="CheckButton" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Enable Auto-Save"
+
+[node name="AutoSaveIntervalRow" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="IntervalLabel" type="Label" parent="MarginContainer/VBox/AutoSaveIntervalRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Auto-Save Interval (weeks)"
+
+[node name="IntervalSpinBox" type="SpinBox" parent="MarginContainer/VBox/AutoSaveIntervalRow"]
+layout_mode = 2
+min_value = 1.0
+max_value = 20.0
+value = 4.0
+
+[node name="NotifHeader" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.345098, 0.65098, 1, 1)
+text = "NOTIFICATIONS"
+
+[node name="ShowInjuryNotifs" type="CheckButton" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Show Injury Notifications"
+
+[node name="ShowPhaseNotifs" type="CheckButton" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Show Phase Notifications"
+
+[node name="ShowAwardNotifs" type="CheckButton" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Show Award Notifications"
+
+[node name="NotifDurationRow" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="DurationLabel" type="Label" parent="MarginContainer/VBox/NotifDurationRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Notification Duration (sec)"
+
+[node name="DurationSlider" type="HSlider" parent="MarginContainer/VBox/NotifDurationRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 0)
+min_value = 1.0
+max_value = 10.0
+step = 0.5
+value = 4.0
+
+[node name="DurationValue" type="Label" parent="MarginContainer/VBox/NotifDurationRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(40, 0)
+text = "4.0"
+horizontal_alignment = 2
+
+[node name="DisplayHeader" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.345098, 0.65098, 1, 1)
+text = "DISPLAY"
+
+[node name="ConfirmCuts" type="CheckButton" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Confirm Before Cutting Players"
+
+[node name="ButtonBar" type="HBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 10
+
+[node name="ResetButton" type="Button" parent="MarginContainer/VBox/ButtonBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+text = "Reset Defaults"
+
+[node name="SaveButton" type="Button" parent="MarginContainer/VBox/ButtonBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+text = "Save"

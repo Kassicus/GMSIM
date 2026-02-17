@@ -1,6 +1,7 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models.Enums;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -86,21 +87,10 @@ public partial class Dashboard : Control
 
         foreach (var player in topPlayers)
         {
-            var label = new Label
-            {
-                Text = $"{player.Position} {player.FullName} - OVR {player.Overall} ({player.Archetype}) Age {player.Age}",
-            };
-            label.AddThemeFontSizeOverride("font_size", 14);
-
-            // Color code by overall
-            if (player.Overall >= 90)
-                label.Modulate = new Color(1.0f, 0.85f, 0.0f); // Gold
-            else if (player.Overall >= 80)
-                label.Modulate = new Color(0.3f, 0.9f, 0.3f); // Green
-            else if (player.Overall >= 70)
-                label.Modulate = new Color(0.4f, 0.7f, 1.0f); // Blue
-            else
-                label.Modulate = new Color(0.8f, 0.8f, 0.8f); // Gray
+            var label = UIFactory.CreateLabel(
+                $"{player.Position} {player.FullName} - OVR {player.Overall} ({player.Archetype}) Age {player.Age}",
+                ThemeFonts.BodyLarge,
+                ThemeColors.GetRatingColor(player.Overall));
 
             _topPlayersList.AddChild(label);
         }

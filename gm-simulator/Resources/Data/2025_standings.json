@@ -1,0 +1,44 @@
+{
+  "season": 2025,
+  "standings": [
+    { "teamId": "NE",  "wins": 14, "losses": 3,  "ties": 0, "pointsFor": 490, "pointsAgainst": 320, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "SuperBowlLoss" },
+    { "teamId": "BUF", "wins": 12, "losses": 5,  "ties": 0, "pointsFor": 481, "pointsAgainst": 365, "divisionRank": 2, "madePlayoffs": true,  "playoffResult": "Divisional" },
+    { "teamId": "MIA", "wins": 7,  "losses": 10, "ties": 0, "pointsFor": 347, "pointsAgainst": 424, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "NYJ", "wins": 3,  "losses": 14, "ties": 0, "pointsFor": 300, "pointsAgainst": 503, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "PIT", "wins": 10, "losses": 7,  "ties": 0, "pointsFor": 397, "pointsAgainst": 387, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "BAL", "wins": 8,  "losses": 9,  "ties": 0, "pointsFor": 424, "pointsAgainst": 398, "divisionRank": 2, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "CIN", "wins": 6,  "losses": 11, "ties": 0, "pointsFor": 414, "pointsAgainst": 492, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "CLE", "wins": 5,  "losses": 12, "ties": 0, "pointsFor": 279, "pointsAgainst": 379, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "JAX", "wins": 13, "losses": 4,  "ties": 0, "pointsFor": 474, "pointsAgainst": 336, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "HOU", "wins": 12, "losses": 5,  "ties": 0, "pointsFor": 404, "pointsAgainst": 295, "divisionRank": 2, "madePlayoffs": true,  "playoffResult": "Divisional" },
+    { "teamId": "IND", "wins": 8,  "losses": 9,  "ties": 0, "pointsFor": 466, "pointsAgainst": 412, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "TEN", "wins": 3,  "losses": 14, "ties": 0, "pointsFor": 284, "pointsAgainst": 478, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "DEN", "wins": 14, "losses": 3,  "ties": 0, "pointsFor": 401, "pointsAgainst": 311, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "ConferenceChampionship" },
+    { "teamId": "LAC", "wins": 11, "losses": 6,  "ties": 0, "pointsFor": 368, "pointsAgainst": 340, "divisionRank": 2, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "KC",  "wins": 6,  "losses": 11, "ties": 0, "pointsFor": 362, "pointsAgainst": 328, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "LV",  "wins": 3,  "losses": 14, "ties": 0, "pointsFor": 241, "pointsAgainst": 432, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "PHI", "wins": 11, "losses": 6,  "ties": 0, "pointsFor": 379, "pointsAgainst": 325, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "DAL", "wins": 7,  "losses": 9,  "ties": 1, "pointsFor": 471, "pointsAgainst": 511, "divisionRank": 2, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "WAS", "wins": 5,  "losses": 12, "ties": 0, "pointsFor": 356, "pointsAgainst": 451, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "NYG", "wins": 4,  "losses": 13, "ties": 0, "pointsFor": 381, "pointsAgainst": 439, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "CHI", "wins": 11, "losses": 6,  "ties": 0, "pointsFor": 441, "pointsAgainst": 415, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "Divisional" },
+    { "teamId": "GB",  "wins": 9,  "losses": 7,  "ties": 1, "pointsFor": 391, "pointsAgainst": 360, "divisionRank": 2, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "MIN", "wins": 9,  "losses": 8,  "ties": 0, "pointsFor": 344, "pointsAgainst": 333, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "DET", "wins": 9,  "losses": 8,  "ties": 0, "pointsFor": 481, "pointsAgainst": 413, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "CAR", "wins": 8,  "losses": 9,  "ties": 0, "pointsFor": 311, "pointsAgainst": 380, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "WildCard" },
+    { "teamId": "TB",  "wins": 8,  "losses": 9,  "ties": 0, "pointsFor": 380, "pointsAgainst": 411, "divisionRank": 2, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "ATL", "wins": 8,  "losses": 9,  "ties": 0, "pointsFor": 353, "pointsAgainst": 401, "divisionRank": 3, "madePlayoffs": false, "playoffResult": null },
+    { "teamId": "NO",  "wins": 6,  "losses": 11, "ties": 0, "pointsFor": 306, "pointsAgainst": 383, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null },
+
+    { "teamId": "SEA", "wins": 14, "losses": 3,  "ties": 0, "pointsFor": 483, "pointsAgainst": 292, "divisionRank": 1, "madePlayoffs": true,  "playoffResult": "SuperBowlWin" },
+    { "teamId": "LAR", "wins": 12, "losses": 5,  "ties": 0, "pointsFor": 518, "pointsAgainst": 346, "divisionRank": 2, "madePlayoffs": true,  "playoffResult": "ConferenceChampionship" },
+    { "teamId": "SF",  "wins": 12, "losses": 5,  "ties": 0, "pointsFor": 437, "pointsAgainst": 371, "divisionRank": 3, "madePlayoffs": true,  "playoffResult": "Divisional" },
+    { "teamId": "ARI", "wins": 3,  "losses": 14, "ties": 0, "pointsFor": 355, "pointsAgainst": 488, "divisionRank": 4, "madePlayoffs": false, "playoffResult": null }
+  ]
+}

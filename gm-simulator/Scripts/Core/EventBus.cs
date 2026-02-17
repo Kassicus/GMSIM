@@ -33,6 +33,11 @@ public partial class EventBus : Node
     [Signal] public delegate void FreeAgencyWeekProcessedEventHandler(int week);
     [Signal] public delegate void CompensatoryPicksAwardedEventHandler();
 
+    // Scouting & Draft
+    [Signal] public delegate void ProspectScoutedEventHandler(string prospectId, int gradeLevel);
+    [Signal] public delegate void ScoutAssignedEventHandler(string scoutId, string prospectId);
+    [Signal] public delegate void UDFASignedEventHandler(string prospectId, string teamId);
+
     // Trades
     [Signal] public delegate void TradeProposedEventHandler(string fromTeamId, string toTeamId);
     [Signal] public delegate void TradeAcceptedEventHandler(string tradeId);
@@ -41,6 +46,12 @@ public partial class EventBus : Node
     // Staff
     [Signal] public delegate void CoachHiredEventHandler(string coachId, string teamId, int role);
     [Signal] public delegate void CoachFiredEventHandler(string coachId, string teamId);
+    [Signal] public delegate void CoachingCarouselCompletedEventHandler(int year);
+
+    // Progression & AI (Phase 8)
+    [Signal] public delegate void ProgressionCompletedEventHandler(int year);
+    [Signal] public delegate void AwardsCalculatedEventHandler(int year);
+    [Signal] public delegate void OwnerPatienceLowEventHandler(string teamId, int patience);
 
     // Game
     [Signal] public delegate void GameCompletedEventHandler(string gameId);

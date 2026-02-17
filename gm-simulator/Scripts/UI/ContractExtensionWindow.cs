@@ -2,6 +2,7 @@ using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Systems;
+using GMSimulator.UI.Theme;
 using Pos = GMSimulator.Models.Enums.Position;
 
 namespace GMSimulator.UI;
@@ -101,7 +102,7 @@ public partial class ContractExtensionWindow : Window
         if (guaranteed > totalValue)
         {
             _statusLabel.Text = "Guaranteed money cannot exceed total value.";
-            _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
             return;
         }
 
@@ -113,12 +114,12 @@ public partial class ContractExtensionWindow : Window
         if (result.Success)
         {
             _statusLabel.Text = result.Message;
-            _statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
         }
         else
         {
             _statusLabel.Text = result.Message;
-            _statusLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+            _statusLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
         }
     }
 

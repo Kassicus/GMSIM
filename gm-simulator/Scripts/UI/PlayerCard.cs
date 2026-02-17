@@ -3,6 +3,7 @@ using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
 using GMSimulator.UI.Components;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -131,9 +132,9 @@ public partial class PlayerCard : Window
             {
                 Text = $"  Yr {year.YearNumber} ({year.Year}): {GameShell.FormatCurrency(year.CapHit)}{marker}",
             };
-            label.AddThemeFontSizeOverride("font_size", 13);
+            label.AddThemeFontSizeOverride("font_size", ThemeFonts.Body);
             if (year.Year == currentYear)
-                label.Modulate = new Color(0.4f, 0.7f, 1.0f);
+                label.Modulate = ThemeColors.AccentText;
             _contractYearsList.AddChild(label);
         }
     }
@@ -215,13 +216,13 @@ public partial class PlayerCard : Window
             {
                 Text = $"  {name}",
             };
-            label.AddThemeFontSizeOverride("font_size", 13);
+            label.AddThemeFontSizeOverride("font_size", ThemeFonts.Body);
 
             // Red for negative traits
             if (name is "Penalty Prone" or "Locker Room Cancer" or "Glass Body")
-                label.Modulate = new Color(1.0f, 0.3f, 0.3f);
+                label.Modulate = ThemeColors.Danger;
             else
-                label.Modulate = new Color(0.3f, 0.9f, 0.3f);
+                label.Modulate = ThemeColors.Success;
 
             _traitsList.AddChild(label);
         }
@@ -235,11 +236,18 @@ public partial class PlayerCard : Window
     private void AddTraitLabel(string text)
     {
         var label = new Label { Text = $"  {text}" };
-        label.AddThemeFontSizeOverride("font_size", 13);
+        label.AddThemeFontSizeOverride("font_size", ThemeFonts.Body);
         _traitsList.AddChild(label);
     }
 
     // --- Action Button Handlers ---
+
+    private void OnComparePressed()
+    {
+        // Find the GameShell parent to open comparison
+        var shell = GetTree().Root.GetNodeOrNull<GameShell>("GameShell");
+        shell?.OpenPlayerComparison(_playerId);
+    }
 
     private void OnCutPressed()
     {

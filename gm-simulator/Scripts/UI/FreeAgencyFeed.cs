@@ -1,6 +1,7 @@
 using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models.Enums;
+using GMSimulator.UI.Theme;
 
 namespace GMSimulator.UI;
 
@@ -81,7 +82,7 @@ public partial class FreeAgencyFeed : PanelContainer
             Text = text,
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
-        label.AddThemeFontSizeOverride("font_size", 11);
+        label.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
         label.AddThemeColorOverride("font_color", color);
 
         // Add at top
@@ -100,7 +101,7 @@ public partial class FreeAgencyFeed : PanelContainer
     private Color GetTeamColor(string teamId, GameManager gm)
     {
         if (teamId == gm.PlayerTeamId)
-            return new Color(0.3f, 1f, 0.3f); // Green for player's team
+            return ThemeColors.Success;
 
         // Check if division rival
         var playerTeam = gm.GetPlayerTeam();
@@ -109,9 +110,9 @@ public partial class FreeAgencyFeed : PanelContainer
             && playerTeam.Conference == otherTeam.Conference
             && playerTeam.Division == otherTeam.Division)
         {
-            return new Color(1f, 0.4f, 0.4f); // Red for division rivals
+            return ThemeColors.Danger;
         }
 
-        return new Color(0.8f, 0.8f, 0.8f); // Neutral white
+        return ThemeColors.TextPrimary;
     }
 }
