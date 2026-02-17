@@ -168,7 +168,7 @@ public static class ContractGenerator
         };
     }
 
-    private static long GetMarketValue(Player player)
+    public static long GetMarketValue(Player player)
     {
         // APY in cents based on overall and position.
         // Calibrated against real 2024 NFL data ($255.4M cap):
@@ -199,7 +199,7 @@ public static class ContractGenerator
         return Math.Max(apy, minimum);
     }
 
-    private static float GetPositionPayMultiplier(Position pos)
+    public static float GetPositionPayMultiplier(Position pos)
     {
         // Calibrated against real 2024 NFL top-of-market data:
         //   QB #1: $55M → 1.6x of $35M base
@@ -230,6 +230,140 @@ public static class ContractGenerator
             Position.LS => 0.08f,      // Long snappers: ~$1-2M max
             _ => 0.50f,
         };
+    }
+
+    public static Contract GenerateFranchiseTagContract(Player player, long tagValue, int year)
+    {
+        return new Contract
+        {
+            PlayerId = player.Id,
+            TeamId = player.TeamId ?? string.Empty,
+            TotalYears = 1,
+            TotalValue = tagValue,
+            TotalGuaranteed = tagValue,
+            Type = ContractType.Veteran,
+            Years = new List<ContractYear>
+            {
+                new()
+                {
+                    Year = year,
+                    YearNumber = 1,
+                    BaseSalary = tagValue,
+                    CapHit = tagValue,
+                    DeadCap = tagValue,
+                    Guaranteed = tagValue,
+                }
+            }
+        };
+    }
+
+    public static Contract GenerateFromOffer(FreeAgentOffer offer, int startYear)
+    {
+        int years = offer.Years;
+        long signingBonus = offer.SigningBonus;
+        int prorationYears = Math.Min(years, 5);
+        long proratedBonus = prorationYears > 0 ? signingBonus / prorationYears : 0;
+        long remainingValue = offer.TotalValue - signingBonus;
+        long guaranteedRemaining = offer.GuaranteedMoney - signingBonus;
+
+        var contract = new Contract
+        {
+            PlayerId = offer.PlayerId,
+            TeamId = offer.TeamId,
+            TotalYears = years,
+            TotalValue = offer.TotalValue,
+            TotalGuaranteed = offer.GuaranteedMoney,
+            Type = ContractType.Veteran,
+            Years = new List<ContractYear>()
+        };
+
+        for (int i = 0; i < years; i++)
+        {
+            // Escalating base salary (~5% per year)
+            float escalation = 1.0f + (0.05f * i);
+            float totalEscalation = 0;
+            for (int j = 0; j < years; j++)
+                totalEscalation += 1.0f + (0.05f * j);
+
+            long yearBase = (long)(remainingValue * (escalation / totalEscalation));
+            if (yearBase < 79500000) yearBase = 79500000; // minimum floor
+
+            // Front-load guarantees: first 2 years get guaranteed base
+            long yearGuaranteed = i < 2 && guaranteedRemaining > 0
+                ? Math.Min(yearBase + (i == 0 ? signingBonus : 0), guaranteedRemaining)
+                : 0;
+            if (i < 2) guaranteedRemaining -= yearGuaranteed;
+
+            long yearDeadCap = i < prorationYears ? proratedBonus * (prorationYears - i) : 0;
+
+            contract.Years.Add(new ContractYear
+            {
+                Year = startYear + i,
+                YearNumber = i + 1,
+                BaseSalary = yearBase,
+                SigningBonus = i == 0 ? signingBonus : 0,
+                CapHit = yearBase + proratedBonus,
+                DeadCap = yearDeadCap,
+                Guaranteed = yearGuaranteed,
+            });
+        }
+
+        return contract;
+    }
+
+    public static Contract GenerateExtensionContract(Player player, int currentYear, int additionalYears, long totalValue, long guaranteed)
+    {
+        var existing = player.CurrentContract;
+        int remainingYears = existing?.Years.Count(y => y.Year >= currentYear) ?? 0;
+        int totalYears = remainingYears + additionalYears;
+
+        long signingBonus = (long)(totalValue * 0.15);
+        int prorationYears = Math.Min(totalYears, 5);
+        long proratedBonus = prorationYears > 0 ? signingBonus / prorationYears : 0;
+        long remainingValue = totalValue - signingBonus;
+        long guaranteedRemaining = guaranteed - signingBonus;
+
+        var contract = new Contract
+        {
+            PlayerId = player.Id,
+            TeamId = player.TeamId ?? string.Empty,
+            TotalYears = totalYears,
+            TotalValue = totalValue,
+            TotalGuaranteed = guaranteed,
+            Type = ContractType.Extension,
+            Years = new List<ContractYear>()
+        };
+
+        for (int i = 0; i < totalYears; i++)
+        {
+            float escalation = 1.0f + (0.05f * i);
+            float totalEscalation = 0;
+            for (int j = 0; j < totalYears; j++)
+                totalEscalation += 1.0f + (0.05f * j);
+
+            long yearBase = (long)(remainingValue * (escalation / totalEscalation));
+            if (yearBase < 79500000) yearBase = 79500000;
+
+            long yearGuaranteed = i < 3 && guaranteedRemaining > 0
+                ? Math.Min(yearBase + (i == 0 ? signingBonus : 0), guaranteedRemaining)
+                : 0;
+            if (i < 3) guaranteedRemaining -= yearGuaranteed;
+
+            long yearDeadCap = i < prorationYears ? proratedBonus * (prorationYears - i) : 0;
+
+            contract.Years.Add(new ContractYear
+            {
+                Year = currentYear + i,
+                YearNumber = i + 1,
+                BaseSalary = yearBase,
+                SigningBonus = i == 0 ? signingBonus : 0,
+                CapHit = yearBase + proratedBonus,
+                DeadCap = yearDeadCap,
+                Guaranteed = yearGuaranteed,
+            });
+        }
+
+        return contract;
     }
 
     private static int GetTypicalContractLength(Player player, Random rng)

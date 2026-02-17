@@ -35,6 +35,11 @@ public class SaveData
     public List<PlayoffSeed>? AFCPlayoffSeeds { get; set; }
     public List<PlayoffSeed>? NFCPlayoffSeeds { get; set; }
 
+    // Free Agency State (Phase 4)
+    public List<FreeAgentOffer> PendingOffers { get; set; } = new();
+    public List<string> FreeAgentPool { get; set; } = new();
+    public int FreeAgencyWeek { get; set; }
+
     // AI State
     public Dictionary<string, AIGMProfile> AIProfiles { get; set; } = new();
 

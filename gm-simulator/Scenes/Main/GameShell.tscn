@@ -120,6 +120,13 @@ toggle_mode = true
 button_group = SubResource("nav_group")
 text = "Standings"
 
+[node name="FreeAgencyBtn" type="Button" parent="VBox/NavBar/NavHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+toggle_mode = true
+button_group = SubResource("nav_group")
+text = "Free Agency"
+
 [node name="ContentArea" type="Control" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -133,3 +140,4 @@ size_flags_vertical = 3
 [connection signal="pressed" from="VBox/NavBar/NavHBox/CapBtn" to="." method="OnNavCap"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/ScheduleBtn" to="." method="OnNavSchedule"]
 [connection signal="pressed" from="VBox/NavBar/NavHBox/StandingsBtn" to="." method="OnNavStandings"]
+[connection signal="pressed" from="VBox/NavBar/NavHBox/FreeAgencyBtn" to="." method="OnNavFreeAgency"]

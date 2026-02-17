@@ -43,6 +43,10 @@ public partial class GameManager : Node
     public SimulationEngine SimEngine { get; private set; } = null!;
     public InjurySystem InjurySystem { get; private set; } = null!;
 
+    // Systems (Phase 4)
+    public FreeAgencySystem FreeAgency { get; private set; } = null!;
+    public int FreeAgencyWeekNumber { get; private set; }
+
     // Season State (Phase 3)
     public Season CurrentSeason { get; private set; } = new();
     public List<GameResult> RecentGameResults { get; private set; } = new();
@@ -136,6 +140,11 @@ public partial class GameManager : Node
         string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
         InitializeSystems(dataPath);
 
+        // Restore FA state
+        FreeAgencyWeekNumber = save.FreeAgencyWeek;
+        if (save.FreeAgentPool.Count > 0 || save.PendingOffers.Count > 0)
+            FreeAgency.SetState(save.FreeAgentPool, save.PendingOffers, save.FreeAgencyWeek);
+
         IsGameActive = true;
     }
 
@@ -162,6 +171,9 @@ public partial class GameManager : Node
             CurrentSeason = CurrentSeason,
             AFCPlayoffSeeds = AFCPlayoffSeeds,
             NFCPlayoffSeeds = NFCPlayoffSeeds,
+            FreeAgencyWeek = FreeAgencyWeekNumber,
+            PendingOffers = FreeAgency?.GetState().Offers ?? new List<FreeAgentOffer>(),
+            FreeAgentPool = FreeAgency?.GetState().Pool ?? new List<string>(),
         };
     }
 
@@ -178,6 +190,14 @@ public partial class GameManager : Node
         // Detect phase transition
         if (result.NewPhase != oldPhase)
             OnPhaseTransition(result.NewPhase);
+
+        // Process free agency week
+        if (Calendar.CurrentPhase == GamePhase.FreeAgency)
+        {
+            FreeAgencyWeekNumber++;
+            FreeAgency.ProcessFreeAgencyWeek(FreeAgencyWeekNumber);
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.FreeAgencyWeekProcessed, FreeAgencyWeekNumber);
+        }
 
         // Simulate games for current week if in season
         if (Calendar.IsRegularSeason() || Calendar.IsPlayoffs() ||
@@ -228,6 +248,12 @@ public partial class GameManager : Node
     {
         switch (newPhase)
         {
+            case GamePhase.FreeAgency:
+                StartFreeAgency();
+                break;
+            case GamePhase.PreDraft:
+                EndFreeAgency();
+                break;
             case GamePhase.RegularSeason:
                 GenerateSeasonSchedule();
                 break;
@@ -239,6 +265,48 @@ public partial class GameManager : Node
                 break;
         }
     }
+
+    // --- Phase 4: Free Agency ---
+
+    private void StartFreeAgency()
+    {
+        // Reset team tag flags
+        foreach (var team in Teams)
+        {
+            team.FranchiseTagUsed = false;
+            team.TaggedPlayerId = null;
+            team.TransitionTagUsed = false;
+            team.TransitionTagPlayerId = null;
+        }
+
+        FreeAgencyWeekNumber = 0;
+        FreeAgency.InitializeFreeAgency(Calendar.CurrentYear);
+
+        GD.Print($"Free agency opened. {FreeAgency.FreeAgentPool.Count} free agents available.");
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.FreeAgencyOpened, Calendar.CurrentYear);
+    }
+
+    private void EndFreeAgency()
+    {
+        // Calculate compensatory picks for the upcoming draft
+        var compPicks = CompensatoryPickCalculator.CalculateCompensatoryPicks(
+            TransactionLog, Players, Teams, Calendar.CurrentYear);
+
+        foreach (var pick in compPicks)
+        {
+            AllDraftPicks.Add(pick);
+            var team = GetTeam(pick.CurrentTeamId);
+            team?.DraftPicks.Add(pick);
+        }
+
+        if (compPicks.Count > 0)
+        {
+            GD.Print($"Awarded {compPicks.Count} compensatory picks.");
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.CompensatoryPicksAwarded);
+        }
+    }
+
+    // --- Phase 3: Season Schedule ---
 
     private void GenerateSeasonSchedule()
     {
@@ -678,6 +746,19 @@ public partial class GameManager : Node
             GetTeam,
             GetCoach,
             InjurySystem);
+
+        FreeAgency = new FreeAgencySystem(
+            () => Teams,
+            () => Players,
+            () => Coaches,
+            () => AIProfiles,
+            () => Rng,
+            GetPlayer,
+            GetTeam,
+            RosterManager,
+            SalaryCapManager,
+            () => Calendar,
+            () => PlayerTeamId);
     }
 
     private void CalculateAllTeamCaps()

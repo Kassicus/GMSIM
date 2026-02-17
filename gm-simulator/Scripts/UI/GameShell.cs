@@ -20,6 +20,7 @@ public partial class GameShell : Control
     private PackedScene _weekScheduleScene = null!;
     private PackedScene _standingsScene = null!;
     private PackedScene _postGameReportScene = null!;
+    private PackedScene _freeAgentMarketScene = null!;
     private Node? _currentContent;
 
     public override void _Ready()
@@ -51,6 +52,7 @@ public partial class GameShell : Control
         _weekScheduleScene = GD.Load<PackedScene>("res://Scenes/GameDay/WeekSchedule.tscn");
         _standingsScene = GD.Load<PackedScene>("res://Scenes/League/Standings.tscn");
         _postGameReportScene = GD.Load<PackedScene>("res://Scenes/GameDay/PostGameReport.tscn");
+        _freeAgentMarketScene = GD.Load<PackedScene>("res://Scenes/FreeAgency/FreeAgentMarket.tscn");
 
         LoadContent(_dashboardScene);
         RefreshTopBar();
@@ -108,6 +110,7 @@ public partial class GameShell : Control
     private void OnNavCap() => LoadContent(_capOverviewScene);
     private void OnNavSchedule() => LoadContent(_weekScheduleScene);
     private void OnNavStandings() => LoadContent(_standingsScene);
+    private void OnNavFreeAgency() => LoadContent(_freeAgentMarketScene);
 
     // --- PlayerCard Popup ---
 

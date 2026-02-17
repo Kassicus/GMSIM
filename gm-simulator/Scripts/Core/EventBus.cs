@@ -28,6 +28,10 @@ public partial class EventBus : Node
     // Free Agency
     [Signal] public delegate void FreeAgencyOpenedEventHandler(int year);
     [Signal] public delegate void FranchiseTagAppliedEventHandler(string playerId, string teamId);
+    [Signal] public delegate void FreeAgentSignedEventHandler(string playerId, string teamId, int years, long totalValue);
+    [Signal] public delegate void ContractExtendedEventHandler(string playerId, string teamId);
+    [Signal] public delegate void FreeAgencyWeekProcessedEventHandler(int week);
+    [Signal] public delegate void CompensatoryPicksAwardedEventHandler();
 
     // Trades
     [Signal] public delegate void TradeProposedEventHandler(string fromTeamId, string toTeamId);

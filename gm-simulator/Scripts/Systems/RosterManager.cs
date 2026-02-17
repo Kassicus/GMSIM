@@ -243,6 +243,125 @@ public class RosterManager
         return (true, "Depth chart updated.");
     }
 
+    // --- Free Agency Operations ---
+
+    public (bool Success, string Message) SignFreeAgent(string playerId, string teamId, Contract contract)
+    {
+        var team = _getTeams().FirstOrDefault(t => t.Id == teamId);
+        var player = _getPlayers().FirstOrDefault(p => p.Id == playerId);
+        if (team == null || player == null)
+            return (false, "Team or player not found.");
+        if (player.TeamId != null)
+            return (false, "Player is not a free agent.");
+        if (team.PlayerIds.Count >= _capManager.ActiveRosterSize)
+            return (false, $"Active roster is full ({_capManager.ActiveRosterSize}/{_capManager.ActiveRosterSize}).");
+
+        var calendar = _getCalendar();
+
+        // Assign to team
+        player.TeamId = teamId;
+        player.CurrentContract = contract;
+        player.RosterStatus = RosterStatus.Active53;
+        team.PlayerIds.Add(playerId);
+
+        // Add to depth chart
+        if (team.DepthChart.Chart.TryGetValue(player.Position, out var depthList))
+            depthList.Add(playerId);
+        else
+            team.DepthChart.Chart[player.Position] = new List<string> { playerId };
+
+        // Recalculate cap
+        _capManager.RecalculateTeamCap(team, _getPlayers(), calendar.CurrentYear);
+
+        // Log transaction
+        long apy = contract.TotalYears > 0 ? contract.TotalValue / contract.TotalYears : 0;
+        LogTransaction(TransactionType.Signed, playerId, teamId, calendar,
+            $"Signed {player.FullName} ({player.Position}) — {contract.TotalYears}yr/{apy / 100m:C0} APY.");
+
+        // Emit signals
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayerSigned, playerId, teamId);
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.FreeAgentSigned, playerId, teamId,
+            contract.TotalYears, contract.TotalValue);
+
+        return (true, $"Signed {player.FullName}.");
+    }
+
+    public (bool Success, string Message) ExtendContract(string playerId, Contract newContract)
+    {
+        var player = _getPlayers().FirstOrDefault(p => p.Id == playerId);
+        if (player == null)
+            return (false, "Player not found.");
+        if (player.TeamId == null)
+            return (false, "Player is not on a team.");
+
+        var team = _getTeams().FirstOrDefault(t => t.Id == player.TeamId);
+        if (team == null)
+            return (false, "Team not found.");
+
+        var calendar = _getCalendar();
+
+        player.CurrentContract = newContract;
+
+        // Recalculate cap
+        _capManager.RecalculateTeamCap(team, _getPlayers(), calendar.CurrentYear);
+
+        // Log transaction
+        LogTransaction(TransactionType.Extended, playerId, team.Id, calendar,
+            $"Extended {player.FullName} ({player.Position}) — {newContract.TotalYears}yr/{newContract.TotalValue / 100m:C0}.");
+
+        // Emit signal
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.ContractExtended, playerId, team.Id);
+
+        return (true, $"Extended {player.FullName}.");
+    }
+
+    public (bool Success, string Message) ApplyFranchiseTag(string playerId, string teamId, bool isTransitionTag)
+    {
+        var team = _getTeams().FirstOrDefault(t => t.Id == teamId);
+        var player = _getPlayers().FirstOrDefault(p => p.Id == playerId);
+        if (team == null || player == null)
+            return (false, "Team or player not found.");
+        if (player.TeamId != teamId)
+            return (false, "Player does not belong to this team.");
+
+        if (!isTransitionTag && team.FranchiseTagUsed)
+            return (false, "Franchise tag already used this year.");
+        if (isTransitionTag && team.TransitionTagUsed)
+            return (false, "Transition tag already used this year.");
+
+        var calendar = _getCalendar();
+        long tagValue = isTransitionTag
+            ? _capManager.CalculateTransitionTagValue(player.Position)
+            : _capManager.CalculateFranchiseTagValue(player.Position);
+
+        // Generate tag contract
+        var tagContract = ContractGenerator.GenerateFranchiseTagContract(player, tagValue, calendar.CurrentYear);
+        player.CurrentContract = tagContract;
+
+        // Set team tag flags
+        if (isTransitionTag)
+        {
+            team.TransitionTagUsed = true;
+            team.TransitionTagPlayerId = playerId;
+        }
+        else
+        {
+            team.FranchiseTagUsed = true;
+            team.TaggedPlayerId = playerId;
+        }
+
+        // Recalculate cap
+        _capManager.RecalculateTeamCap(team, _getPlayers(), calendar.CurrentYear);
+
+        string tagType = isTransitionTag ? "transition" : "franchise";
+        LogTransaction(TransactionType.Tagged, playerId, teamId, calendar,
+            $"Applied {tagType} tag to {player.FullName} ({player.Position}) at {tagValue / 100m:C0}.");
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.FranchiseTagApplied, playerId, teamId);
+
+        return (true, $"Applied {tagType} tag to {player.FullName}.");
+    }
+
     // --- Helpers ---
 
     private void RemoveFromDepthChart(Team team, string playerId)

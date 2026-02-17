@@ -11,6 +11,7 @@ namespace GMSimulator.Systems;
 public class SalaryCapManager
 {
     private Dictionary<int, long> _capByYear = new();
+    private Dictionary<Position, long> _franchiseTagValues = new();
     private int _maxProrationYears = 5;
     private int _activeRosterSize = 53;
     private int _practiceSquadSize = 16;
@@ -53,6 +54,15 @@ public class SalaryCapManager
             _capGrowthRateMin = (float)cgMin.GetDouble();
         if (root.TryGetProperty("capGrowthRateMax", out var cgMax))
             _capGrowthRateMax = (float)cgMax.GetDouble();
+
+        if (root.TryGetProperty("franchiseTagEstimatesByPosition", out var tagEst))
+        {
+            foreach (var prop in tagEst.EnumerateObject())
+            {
+                if (Enum.TryParse<Position>(prop.Name, out var pos))
+                    _franchiseTagValues[pos] = prop.Value.GetInt64();
+            }
+        }
     }
 
     public void RecalculateTeamCap(Team team, List<Player> allPlayers, int currentYear)
@@ -225,5 +235,20 @@ public class SalaryCapManager
         long savings = amountToConvert - proratedAmount; // This year saves (amount - prorated portion)
 
         return (savings, proratedAmount);
+    }
+
+    public long CalculateFranchiseTagValue(Position pos)
+    {
+        return _franchiseTagValues.GetValueOrDefault(pos, 1500000000L); // default ~$15M
+    }
+
+    public long CalculateTransitionTagValue(Position pos)
+    {
+        return (long)(CalculateFranchiseTagValue(pos) * 0.8);
+    }
+
+    public bool CanAffordContract(Team team, long annualCapHit)
+    {
+        return team.CapSpace >= annualCapHit;
     }
 }

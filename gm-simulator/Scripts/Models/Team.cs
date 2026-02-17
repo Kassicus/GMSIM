@@ -46,6 +46,12 @@ public class Team
     public TeamRecord CurrentRecord { get; set; } = new();
     public List<TeamRecord> SeasonHistory { get; set; } = new();
 
+    // Franchise/Transition Tags
+    public bool FranchiseTagUsed { get; set; }
+    public string? TaggedPlayerId { get; set; }
+    public bool TransitionTagUsed { get; set; }
+    public string? TransitionTagPlayerId { get; set; }
+
     // Team Needs & Settings
     public SchemeType OffensiveScheme { get; set; }
     public SchemeType DefensiveScheme { get; set; }
