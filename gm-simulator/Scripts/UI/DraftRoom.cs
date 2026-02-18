@@ -18,6 +18,9 @@ public partial class DraftRoom : Control
     private Button _selectBtn = null!;
     private Button _autoPickBtn = null!;
     private Button _simBtn = null!;
+    private Button _tradeBtn = null!;
+
+    private PackedScene _tradeProposalScene = null!;
 
     private string? _selectedProspectId;
     private const int MaxBoardRows = 50;
@@ -34,7 +37,28 @@ public partial class DraftRoom : Control
         _autoPickBtn = GetNode<Button>("VBox/BottomBar/ButtonHBox/AutoPickBtn");
         _simBtn = GetNode<Button>("VBox/BottomBar/ButtonHBox/SimBtn");
 
+        _tradeProposalScene = GD.Load<PackedScene>("res://Scenes/Trade/TradeProposalScreen.tscn");
+
+        // Add Trade Pick button to the button bar
+        var buttonHBox = GetNode<HBoxContainer>("VBox/BottomBar/ButtonHBox");
+        _tradeBtn = new Button
+        {
+            Text = "Trade Pick",
+            CustomMinimumSize = new Vector2(100, 0),
+        };
+        _tradeBtn.Pressed += OnTradePickPressed;
+        buttonHBox.AddChild(_tradeBtn);
+
+        if (EventBus.Instance != null)
+            EventBus.Instance.TradeAccepted += OnDraftTradeCompleted;
+
         RefreshAll();
+    }
+
+    public override void _ExitTree()
+    {
+        if (EventBus.Instance != null)
+            EventBus.Instance.TradeAccepted -= OnDraftTradeCompleted;
     }
 
     private void RefreshAll()
@@ -51,6 +75,7 @@ public partial class DraftRoom : Control
             _selectBtn.Disabled = true;
             _autoPickBtn.Disabled = true;
             _simBtn.Disabled = true;
+            _tradeBtn.Disabled = true;
             RefreshHistory(draft);
             return;
         }
@@ -79,6 +104,8 @@ public partial class DraftRoom : Control
             _autoPickBtn.Disabled = true;
             _simBtn.Disabled = false;
         }
+
+        _tradeBtn.Disabled = false;
 
         RefreshBoard(draft, gm);
         RefreshNeeds(gm);
@@ -260,6 +287,83 @@ public partial class DraftRoom : Control
             _statusLabel.Text = $"Simulated {results.Count} picks.";
         }
 
+        RefreshAll();
+    }
+
+    // --- Draft-Day Trading ---
+
+    private void OnTradePickPressed()
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
+        // Create a team selector popup
+        var popup = new Window
+        {
+            Title = "Select Trade Partner",
+            Size = new Vector2I(300, 500),
+            Exclusive = true,
+        };
+
+        var margin = new MarginContainer();
+        margin.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        margin.AddThemeConstantOverride("margin_left", 10);
+        margin.AddThemeConstantOverride("margin_top", 10);
+        margin.AddThemeConstantOverride("margin_right", 10);
+        margin.AddThemeConstantOverride("margin_bottom", 10);
+        popup.AddChild(margin);
+
+        var vbox = new VBoxContainer();
+        vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+        margin.AddChild(vbox);
+
+        var titleLabel = new Label { Text = "Choose a team to trade with:" };
+        titleLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.BodyLarge);
+        vbox.AddChild(titleLabel);
+
+        var scroll = new ScrollContainer();
+        scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+        scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        vbox.AddChild(scroll);
+
+        var teamList = new VBoxContainer();
+        teamList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        scroll.AddChild(teamList);
+
+        foreach (var team in gm.Teams.Where(t => t.Id != gm.PlayerTeamId).OrderBy(t => t.FullName))
+        {
+            var btn = new Button
+            {
+                Text = team.FullName,
+                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            };
+            string teamId = team.Id;
+            btn.Pressed += () =>
+            {
+                popup.QueueFree();
+                OpenTradeProposal(teamId);
+            };
+            teamList.AddChild(btn);
+        }
+
+        var cancelBtn = new Button { Text = "Cancel" };
+        cancelBtn.Pressed += () => popup.QueueFree();
+        vbox.AddChild(cancelBtn);
+
+        GetTree().Root.AddChild(popup);
+        popup.PopupCentered();
+    }
+
+    private void OpenTradeProposal(string targetTeamId)
+    {
+        var screen = _tradeProposalScene.Instantiate<TradeProposalScreen>();
+        screen.Initialize(targetTeamId);
+        GetTree().Root.AddChild(screen);
+    }
+
+    private void OnDraftTradeCompleted(string tradeId)
+    {
         RefreshAll();
     }
 }

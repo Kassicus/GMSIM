@@ -210,6 +210,7 @@ public class TradeSystem
         var calendar = _getCalendar();
         return calendar.CurrentPhase switch
         {
+            GamePhase.Draft => true,
             GamePhase.PostDraft => true,
             GamePhase.Preseason => true,
             GamePhase.RegularSeason => calendar.CurrentWeek <= 8,

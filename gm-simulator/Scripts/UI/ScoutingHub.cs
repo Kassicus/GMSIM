@@ -37,7 +37,7 @@ public partial class ScoutingHub : Control
         if (EventBus.Instance != null)
         {
             EventBus.Instance.ProspectScouted += OnProspectScouted;
-            EventBus.Instance.ScoutAssigned += OnScoutAssigned;
+            EventBus.Instance.WeekAdvanced += OnWeekAdvanced;
         }
     }
 
@@ -46,7 +46,7 @@ public partial class ScoutingHub : Control
         if (EventBus.Instance != null)
         {
             EventBus.Instance.ProspectScouted -= OnProspectScouted;
-            EventBus.Instance.ScoutAssigned -= OnScoutAssigned;
+            EventBus.Instance.WeekAdvanced -= OnWeekAdvanced;
         }
     }
 
@@ -75,15 +75,7 @@ public partial class ScoutingHub : Control
         var gm = GameManager.Instance;
         if (gm == null) return;
 
-        _budgetLabel.Text = $"Budget: {gm.Scouting.ScoutingBudget} pts";
-
-        var assignedMap = new Dictionary<string, string>(); // scoutId -> prospectName
-        foreach (var assignment in gm.Scouting.Assignments)
-        {
-            var prospect = gm.CurrentDraftClass.FirstOrDefault(p => p.Id == assignment.ProspectId);
-            if (prospect != null)
-                assignedMap[assignment.ScoutId] = prospect.FullName;
-        }
+        _budgetLabel.Text = $"Points: {gm.Scouting.CurrentPoints} / {gm.Scouting.WeeklyPointPool} (Cost: {Systems.ScoutingSystem.CostPerAction}/scout)";
 
         foreach (var scout in gm.Scouts)
         {
@@ -91,28 +83,84 @@ public partial class ScoutingHub : Control
 
             var nameLabel = new Label
             {
-                Text = $"{scout.Name} (A:{scout.Accuracy} S:{scout.Speed})",
+                Text = $"{scout.Name} (Acc:{scout.Accuracy} Spd:{scout.Speed})",
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
             };
             nameLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
             hbox.AddChild(nameLabel);
 
-            if (assignedMap.TryGetValue(scout.Id, out var prospectName))
-            {
-                var statusLabel = new Label { Text = $"→ {prospectName}" };
-                statusLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
-                statusLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
-                hbox.AddChild(statusLabel);
-            }
-            else
-            {
-                var statusLabel = new Label { Text = "Available" };
-                statusLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
-                statusLabel.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
-                hbox.AddChild(statusLabel);
-            }
+            int contribution = (scout.Accuracy + scout.Speed) / 2;
+            var contribLabel = new Label { Text = $"+{contribution} pts/wk" };
+            contribLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+            contribLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
+            hbox.AddChild(contribLabel);
+
+            var fireBtn = new Button { Text = "Fire", CustomMinimumSize = new Vector2(50, 0) };
+            fireBtn.Disabled = gm.Scouts.Count <= 1;
+            string sid = scout.Id;
+            fireBtn.Pressed += () => OnFireScout(sid);
+            hbox.AddChild(fireBtn);
 
             _scoutList.AddChild(hbox);
+        }
+
+        // Scout Market section
+        var sep = new HSeparator();
+        _scoutList.AddChild(sep);
+
+        var marketHeader = new Label
+        {
+            Text = $"AVAILABLE SCOUTS ({gm.ScoutMarket.Count})",
+        };
+        marketHeader.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+        marketHeader.AddThemeColorOverride("font_color", ThemeColors.Warning);
+        _scoutList.AddChild(marketHeader);
+
+        if (gm.ScoutMarket.Count == 0)
+        {
+            var emptyLabel = new Label { Text = "No scouts available. Market refreshes each offseason." };
+            emptyLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+            emptyLabel.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
+            _scoutList.AddChild(emptyLabel);
+        }
+        else
+        {
+            foreach (var scout in gm.ScoutMarket)
+            {
+                var hbox = new HBoxContainer();
+
+                var nameLabel = new Label
+                {
+                    Text = $"{scout.Name} (Acc:{scout.Accuracy} Spd:{scout.Speed})",
+                    SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                };
+                nameLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+                hbox.AddChild(nameLabel);
+
+                var specLabel = new Label
+                {
+                    Text = scout.Specialty.ToString(),
+                    CustomMinimumSize = new Vector2(80, 0),
+                };
+                specLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+                hbox.AddChild(specLabel);
+
+                var salaryLabel = new Label
+                {
+                    Text = $"${scout.Salary:N0}/yr",
+                    CustomMinimumSize = new Vector2(80, 0),
+                };
+                salaryLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+                hbox.AddChild(salaryLabel);
+
+                var hireBtn = new Button { Text = "Hire", CustomMinimumSize = new Vector2(50, 0) };
+                hireBtn.Disabled = gm.Scouts.Count >= 10;
+                string mid = scout.Id;
+                hireBtn.Pressed += () => OnHireScout(mid);
+                hbox.AddChild(hireBtn);
+
+                _scoutList.AddChild(hbox);
+            }
         }
     }
 
@@ -182,8 +230,9 @@ public partial class ScoutingHub : Control
             hbox.AddChild(viewBtn);
 
             var scoutBtn = new Button { Text = "Scout", CustomMinimumSize = new Vector2(55, 0) };
-            scoutBtn.Pressed += () => QuickAssignScout(pid);
-            scoutBtn.Disabled = prospect.ScoutGrade == ScoutingGrade.FullyScouted;
+            scoutBtn.Pressed += () => OnScoutProspect(pid);
+            scoutBtn.Disabled = prospect.ScoutGrade == ScoutingGrade.FullyScouted
+                || gm.Scouting.CurrentPoints < Systems.ScoutingSystem.CostPerAction;
             hbox.AddChild(scoutBtn);
 
             bool onBoard = gm.DraftBoardOrder.Contains(pid);
@@ -240,16 +289,12 @@ public partial class ScoutingHub : Control
         GetTree().Root.AddChild(card);
     }
 
-    private void QuickAssignScout(string prospectId)
+    private void OnScoutProspect(string prospectId)
     {
         var gm = GameManager.Instance;
         if (gm == null) return;
 
-        var assignedIds = gm.Scouting.Assignments.Select(a => a.ScoutId).ToHashSet();
-        var scout = gm.Scouts.FirstOrDefault(s => !assignedIds.Contains(s.Id));
-        if (scout == null) return;
-
-        gm.Scouting.AssignScout(scout.Id, prospectId);
+        gm.Scouting.ScoutProspect(prospectId);
         RefreshScoutList();
         RefreshProspectList();
     }
@@ -268,9 +313,31 @@ public partial class ScoutingHub : Control
 
     private Color GetGradeColor(ScoutingGrade grade) => ThemeColors.GetScoutGradeColor(grade);
 
+    private void OnFireScout(string scoutId)
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
+        var (success, message) = gm.FireScout(scoutId);
+        GD.Print($"Fire scout: {message}");
+        if (success)
+            RefreshScoutList();
+    }
+
+    private void OnHireScout(string scoutId)
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
+        var (success, message) = gm.HireScout(scoutId);
+        GD.Print($"Hire scout: {message}");
+        if (success)
+            RefreshScoutList();
+    }
+
     // Signal handlers
     private void OnFilterChanged(int _idx) => RefreshProspectList();
     private void OnSearchChanged(string _text) => RefreshProspectList();
+    private void OnWeekAdvanced(int _year, int _week) { RefreshScoutList(); RefreshProspectList(); }
     private void OnProspectScouted(string _id, int _grade) { RefreshScoutList(); RefreshProspectList(); }
-    private void OnScoutAssigned(string _sid, string _pid) { RefreshScoutList(); RefreshProspectList(); }
 }

@@ -21,6 +21,7 @@ public partial class GameManager : Node
     public List<Player> Players { get; private set; } = new();
     public List<Coach> Coaches { get; private set; } = new();
     public List<Scout> Scouts { get; private set; } = new();
+    public List<Scout> ScoutMarket { get; set; } = new();
     public List<DraftPick> AllDraftPicks { get; private set; } = new();
     public List<Prospect> CurrentDraftClass { get; private set; } = new();
     public List<TransactionRecord> TransactionLog { get; private set; } = new();
@@ -52,6 +53,7 @@ public partial class GameManager : Node
     public ScoutingSystem Scouting { get; private set; } = null!;
     public DraftSystem Draft { get; private set; } = null!;
     public List<string> DraftBoardOrder { get; set; } = new();
+    public Dictionary<string, int> DraftBoardTags { get; set; } = new();
 
     // Systems (Phase 6)
     public TradeSystem Trading { get; private set; } = null!;
@@ -96,6 +98,7 @@ public partial class GameManager : Node
         Players.Clear();
         Coaches.Clear();
         Scouts.Clear();
+        ScoutMarket.Clear();
         AllDraftPicks.Clear();
         CurrentDraftClass.Clear();
         TransactionLog.Clear();
@@ -117,6 +120,8 @@ public partial class GameManager : Node
         InitializeSystems(dataPath);
         GenerateAllRosters();
         GenerateCoachingStaffs();
+        GenerateScouts();
+        GenerateScoutMarket();
         GenerateDraftPicks();
         InitializeAIProfiles();
         CalculateAllTeamCaps();
@@ -144,6 +149,7 @@ public partial class GameManager : Node
         Players = save.Players;
         Coaches = save.Coaches;
         Scouts = save.Scouts;
+        ScoutMarket = save.ScoutMarket;
         AllDraftPicks = save.AllDraftPicks;
         CurrentDraftClass = save.CurrentDraftClass;
         TransactionLog = save.TransactionLog;
@@ -166,8 +172,9 @@ public partial class GameManager : Node
 
         // Restore scouting & draft state
         DraftBoardOrder = save.DraftBoardOrder;
-        if (save.ScoutAssignments.Count > 0)
-            Scouting.SetState(save.ScoutAssignments, save.ScoutingBudget);
+        DraftBoardTags = save.DraftBoardTags;
+        if (save.ScoutingWeeklyPool > 0 || save.ScoutingCurrentPoints > 0)
+            Scouting.SetState(save.ScoutingWeeklyPool, save.ScoutingCurrentPoints);
         if (save.DraftCurrentRound > 0)
             Draft.SetState(save.DraftCurrentPick, save.DraftCurrentRound, save.DraftCurrentPick);
 
@@ -203,6 +210,7 @@ public partial class GameManager : Node
             Players = Players,
             Coaches = Coaches,
             Scouts = Scouts,
+            ScoutMarket = ScoutMarket,
             AllDraftPicks = AllDraftPicks,
             CurrentDraftClass = CurrentDraftClass,
             TransactionLog = TransactionLog,
@@ -215,8 +223,9 @@ public partial class GameManager : Node
             PendingOffers = FreeAgency?.GetState().Offers ?? new List<FreeAgentOffer>(),
             FreeAgentPool = FreeAgency?.GetState().Pool ?? new List<string>(),
             DraftBoardOrder = DraftBoardOrder,
-            ScoutAssignments = Scouting?.GetState().Assignments?.ToList() ?? new List<ScoutAssignment>(),
-            ScoutingBudget = Scouting?.ScoutingBudget ?? 1500,
+            ScoutingWeeklyPool = Scouting?.GetState().WeeklyPool ?? 0,
+            ScoutingCurrentPoints = Scouting?.GetState().CurrentPoints ?? 0,
+            DraftBoardTags = DraftBoardTags,
             DraftCurrentRound = Draft?.GetState().PickIndex > 0 ? (Draft.GetCurrentPick()?.Round ?? 0) : 0,
             DraftCurrentPick = Draft?.GetState().PickIndex ?? 0,
             TradeHistory = Trading?.GetState().History ?? new List<TradeRecord>(),
@@ -323,6 +332,7 @@ public partial class GameManager : Node
             case GamePhase.PostSeason:
                 RunCoachingCarousel();
                 RunEndOfSeasonProcessing();
+                GenerateScoutMarket();
                 break;
             case GamePhase.CombineScouting:
                 StartCombineScouting();
@@ -348,6 +358,7 @@ public partial class GameManager : Node
                 }
                 Scouting.InitializeForDraftCycle();
                 DraftBoardOrder.Clear();
+                DraftBoardTags.Clear();
                 break;
             case GamePhase.Preseason:
                 AIGM.SetAIDepthCharts();
@@ -533,10 +544,6 @@ public partial class GameManager : Node
 
         // Combine gives baseline scouting to all prospects
         Scouting.AutoScoutCombine();
-
-        // Generate scouts for player team if none exist
-        if (Scouts.Count == 0)
-            GenerateScouts();
     }
 
     private void StartDraft()
@@ -577,6 +584,64 @@ public partial class GameManager : Node
         }
 
         GD.Print($"Generated {Scouts.Count} scouts.");
+    }
+
+    private void GenerateScoutMarket()
+    {
+        ScoutMarket.Clear();
+
+        string[] scoutFirstNames = { "Mike", "Dave", "Tom", "Chris", "Steve", "Mark", "Jim", "Dan" };
+        string[] scoutLastNames = { "Reynolds", "Harrison", "Cooper", "Mitchell", "Brooks", "Palmer", "Walsh", "Grant" };
+        var specialties = Enum.GetValues<ScoutSpecialty>();
+        var regions = Enum.GetValues<ScoutRegion>();
+
+        for (int i = 0; i < 5; i++)
+        {
+            ScoutMarket.Add(new Scout
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = $"{scoutFirstNames[Rng.Next(scoutFirstNames.Length)]} {scoutLastNames[Rng.Next(scoutLastNames.Length)]}",
+                Accuracy = 55 + Rng.Next(35),
+                Speed = 50 + Rng.Next(40),
+                Specialty = specialties[Rng.Next(specialties.Length)],
+                Region = regions[Rng.Next(regions.Length)],
+                Salary = 50000 + Rng.Next(50000),
+                Experience = Rng.Next(20),
+            });
+        }
+
+        GD.Print($"Generated {ScoutMarket.Count} scouts for market.");
+    }
+
+    public (bool Success, string Message) HireScout(string scoutId)
+    {
+        if (Scouts.Count >= 10)
+            return (false, "Cannot hire more scouts. Maximum of 10 reached.");
+
+        var scout = ScoutMarket.FirstOrDefault(s => s.Id == scoutId);
+        if (scout == null)
+            return (false, "Scout not found in market.");
+
+        ScoutMarket.Remove(scout);
+        Scouts.Add(scout);
+        Scouting.RecalculatePoints();
+
+        return (true, $"Hired {scout.Name}.");
+    }
+
+    public (bool Success, string Message) FireScout(string scoutId)
+    {
+        if (Scouts.Count <= 1)
+            return (false, "Cannot fire your last scout.");
+
+        var scout = Scouts.FirstOrDefault(s => s.Id == scoutId);
+        if (scout == null)
+            return (false, "Scout not found.");
+
+        Scouts.Remove(scout);
+        Scouting.RecalculatePoints();
+
+        return (true, $"Fired {scout.Name}.");
     }
 
     // --- Phase 3: Season Schedule ---

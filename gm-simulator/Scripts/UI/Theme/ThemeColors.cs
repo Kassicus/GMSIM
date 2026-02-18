@@ -68,6 +68,30 @@ public static class ThemeColors
     public static readonly Color NotifInfoBg    = new(0.05f, 0.11f, 0.24f, 0.95f);
     public static readonly Color NotifDefaultBg = new(0.11f, 0.12f, 0.14f, 0.95f);
 
+    // === PHASE ACCENT COLORS ===
+    public static readonly Color PhasePostSeason     = new("#8B949E"); // Gray
+    public static readonly Color PhaseCombine        = new("#A371F7"); // Purple
+    public static readonly Color PhaseFreeAgency     = new("#3FB950"); // Green
+    public static readonly Color PhasePreDraft       = new("#D29922"); // Amber
+    public static readonly Color PhaseDraft          = new("#F78166"); // Orange
+    public static readonly Color PhasePostDraft      = new("#58A6FF"); // Blue
+    public static readonly Color PhasePreseason      = new("#79C0FF"); // Light blue
+    public static readonly Color PhaseRegularSeason  = new("#1A7FD4"); // NFL Shield Blue
+    public static readonly Color PhasePlayoffs       = new("#FFD700"); // Gold
+    public static readonly Color PhaseSuperBowl      = new("#FFD700"); // Gold
+
+    // Phase muted backgrounds
+    public static readonly Color PhasePostSeasonBg     = new("#1C2128");
+    public static readonly Color PhaseCombineBg        = new("#1A1530");
+    public static readonly Color PhaseFreeAgencyBg     = new("#0D2818");
+    public static readonly Color PhasePreDraftBg       = new("#2D2206");
+    public static readonly Color PhaseDraftBg          = new("#2D1508");
+    public static readonly Color PhasePostDraftBg      = new("#0C2D5E");
+    public static readonly Color PhasePreseasonBg      = new("#0D2040");
+    public static readonly Color PhaseRegularSeasonBg  = new("#0A2E52");
+    public static readonly Color PhasePlayoffsBg       = new("#2D2800");
+    public static readonly Color PhaseSuperBowlBg      = new("#2D2800");
+
     // === HIGHLIGHTS ===
     public static readonly Color PlayerHighlight = new(0.06f, 0.18f, 0.37f, 0.6f);
 
@@ -110,5 +134,35 @@ public static class ThemeColors
         TransactionType.Drafted => TxnDrafted,
         TransactionType.Injured => TxnInjured,
         _                       => TxnNeutral,
+    };
+
+    public static Color GetPhaseAccentColor(GamePhase phase) => phase switch
+    {
+        GamePhase.PostSeason      => PhasePostSeason,
+        GamePhase.CombineScouting => PhaseCombine,
+        GamePhase.FreeAgency      => PhaseFreeAgency,
+        GamePhase.PreDraft        => PhasePreDraft,
+        GamePhase.Draft           => PhaseDraft,
+        GamePhase.PostDraft       => PhasePostDraft,
+        GamePhase.Preseason       => PhasePreseason,
+        GamePhase.RegularSeason   => PhaseRegularSeason,
+        GamePhase.Playoffs        => PhasePlayoffs,
+        GamePhase.SuperBowl       => PhaseSuperBowl,
+        _                         => Accent,
+    };
+
+    public static Color GetPhaseAccentBg(GamePhase phase) => phase switch
+    {
+        GamePhase.PostSeason      => PhasePostSeasonBg,
+        GamePhase.CombineScouting => PhaseCombineBg,
+        GamePhase.FreeAgency      => PhaseFreeAgencyBg,
+        GamePhase.PreDraft        => PhasePreDraftBg,
+        GamePhase.Draft           => PhaseDraftBg,
+        GamePhase.PostDraft       => PhasePostDraftBg,
+        GamePhase.Preseason       => PhasePreseasonBg,
+        GamePhase.RegularSeason   => PhaseRegularSeasonBg,
+        GamePhase.Playoffs        => PhasePlayoffsBg,
+        GamePhase.SuperBowl       => PhaseSuperBowlBg,
+        _                         => BgSurface,
     };
 }

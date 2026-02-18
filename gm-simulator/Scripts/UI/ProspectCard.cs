@@ -40,7 +40,7 @@ public partial class ProspectCard : Window
         _redFlagsLabel = GetNode<Label>("MarginContainer/ScrollContainer/VBox/RedFlagsLabel");
         _assignScoutBtn = GetNode<Button>("MarginContainer/ScrollContainer/VBox/ButtonHBox/AssignScoutBtn");
 
-        _assignScoutBtn.Pressed += OnAssignScoutPressed;
+        _assignScoutBtn.Pressed += OnScoutPressed;
 
         Populate();
     }
@@ -66,8 +66,14 @@ public partial class ProspectCard : Window
         PopulateAttributes();
         PopulateStrengthsWeaknesses();
 
-        // Hide assign button if fully scouted
+        // Update scout button state
+        bool canScout = _prospect.ScoutGrade != ScoutingGrade.FullyScouted
+            && gm.Scouting.CurrentPoints >= Systems.ScoutingSystem.CostPerAction;
         _assignScoutBtn.Visible = _prospect.ScoutGrade != ScoutingGrade.FullyScouted;
+        _assignScoutBtn.Disabled = !canScout;
+        _assignScoutBtn.Text = canScout
+            ? $"Scout ({Systems.ScoutingSystem.CostPerAction} pts)"
+            : _prospect.ScoutGrade == ScoutingGrade.FullyScouted ? "Fully Scouted" : "No Points";
     }
 
     private void PopulateCombine()
@@ -166,23 +172,16 @@ public partial class ProspectCard : Window
         }
     }
 
-    private void OnAssignScoutPressed()
+    private void OnScoutPressed()
     {
         var gm = GameManager.Instance;
         if (gm == null || _prospect == null) return;
 
-        // Find first available scout
-        var assignedScoutIds = gm.Scouting.Assignments.Select(a => a.ScoutId).ToHashSet();
-        var availableScout = gm.Scouts.FirstOrDefault(s => !assignedScoutIds.Contains(s.Id));
+        var result = gm.Scouting.ScoutProspect(_prospect.Id);
+        _assignScoutBtn.Text = result.Message;
 
-        if (availableScout == null)
-        {
-            _assignScoutBtn.Text = "No Scouts Free";
-            return;
-        }
-
-        var result = gm.Scouting.AssignScout(availableScout.Id, _prospect.Id);
-        _assignScoutBtn.Text = result.Success ? "Assigned!" : result.Message;
+        // Re-populate to show newly revealed attributes
+        Populate();
     }
 
     private void OnClosePressed() => QueueFree();

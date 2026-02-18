@@ -11,17 +11,13 @@ public class ScoutingSystem
     private readonly Func<Random> _getRng;
     private readonly Func<string> _getPlayerTeamId;
 
-    private List<ScoutAssignment> _assignments = new();
-    private int _scoutingBudget = 1500;
+    private int _weeklyPointPool;
+    private int _currentPoints;
 
-    // Scouting point costs by target tier
-    private const int CostInitial = 10;       // → 25%
-    private const int CostIntermediate = 25;   // → 50%
-    private const int CostAdvanced = 50;       // → 75%
-    private const int CostFull = 100;          // → 100%
+    public const int CostPerAction = 25;
 
-    public int ScoutingBudget => _scoutingBudget;
-    public IReadOnlyList<ScoutAssignment> Assignments => _assignments;
+    public int WeeklyPointPool => _weeklyPointPool;
+    public int CurrentPoints => _currentPoints;
 
     public ScoutingSystem(
         Func<List<Prospect>> getProspects,
@@ -37,92 +33,61 @@ public class ScoutingSystem
 
     public void InitializeForDraftCycle()
     {
-        _assignments.Clear();
-        _scoutingBudget = 1500;
+        CalculateWeeklyPoints();
+        _currentPoints = _weeklyPointPool;
     }
 
-    public (bool Success, string Message) AssignScout(string scoutId, string prospectId)
+    public void CalculateWeeklyPoints()
     {
         var scouts = _getScouts();
-        var prospects = _getProspects();
+        _weeklyPointPool = scouts.Sum(s => (s.Accuracy + s.Speed) / 2);
+    }
 
-        var scout = scouts.FirstOrDefault(s => s.Id == scoutId);
-        if (scout == null) return (false, "Scout not found.");
+    public (bool Success, string Message) ScoutProspect(string prospectId)
+    {
+        var prospects = _getProspects();
+        var scouts = _getScouts();
+        var rng = _getRng();
 
         var prospect = prospects.FirstOrDefault(p => p.Id == prospectId);
         if (prospect == null) return (false, "Prospect not found.");
 
-        // Check if scout is already assigned
-        if (_assignments.Any(a => a.ScoutId == scoutId))
-            return (false, $"{scout.Name} is already assigned to a prospect.");
+        if (prospect.ScoutGrade == ScoutingGrade.FullyScouted)
+            return (false, $"{prospect.FullName} is already fully scouted.");
 
-        // Check if prospect is already being scouted
-        if (_assignments.Any(a => a.ProspectId == prospectId))
-            return (false, $"{prospect.FullName} is already being scouted.");
+        if (_currentPoints < CostPerAction)
+            return (false, $"Not enough scouting points. Need {CostPerAction}, have {_currentPoints}.");
 
-        // Determine cost based on next scouting tier
-        int cost = GetNextTierCost(prospect);
-        if (cost <= 0) return (false, $"{prospect.FullName} is already fully scouted.");
-        if (_scoutingBudget < cost)
-            return (false, $"Insufficient scouting budget. Need {cost}, have {_scoutingBudget}.");
+        _currentPoints -= CostPerAction;
 
-        _scoutingBudget -= cost;
-
-        _assignments.Add(new ScoutAssignment
+        // Advance exactly one tier
+        float newProgress = prospect.ScoutGrade switch
         {
-            ScoutId = scoutId,
-            ProspectId = prospectId,
-            WeeksAssigned = 0,
-        });
+            ScoutingGrade.Unscouted => 0.25f,
+            ScoutingGrade.Initial => 0.50f,
+            ScoutingGrade.Intermediate => 0.75f,
+            ScoutingGrade.Advanced => 1.0f,
+            _ => prospect.ScoutingProgress,
+        };
+        prospect.ScoutingProgress = newProgress;
 
-        EventBus.Instance?.EmitSignal(EventBus.SignalName.ScoutAssigned, scoutId, prospectId);
-        return (true, $"Assigned {scout.Name} to scout {prospect.FullName}. ({cost} points spent, {_scoutingBudget} remaining)");
-    }
+        var newGrade = GetGradeFromProgress(newProgress);
+        prospect.ScoutGrade = newGrade;
 
-    public void UnassignScout(string scoutId)
-    {
-        _assignments.RemoveAll(a => a.ScoutId == scoutId);
+        // Use average scout accuracy for attribute reveal
+        int avgAccuracy = scouts.Count > 0
+            ? (int)scouts.Average(s => s.Accuracy)
+            : 70;
+        RevealAttributes(prospect, newGrade, avgAccuracy, rng);
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.ProspectScouted, prospect.Id, (int)newGrade);
+        return (true, $"Scouted {prospect.FullName} to {newGrade}. ({_currentPoints} pts remaining)");
     }
 
     public void ProcessScoutingWeek()
     {
-        var scouts = _getScouts();
-        var prospects = _getProspects();
-        var rng = _getRng();
-
-        var completedAssignments = new List<ScoutAssignment>();
-
-        foreach (var assignment in _assignments)
-        {
-            var scout = scouts.FirstOrDefault(s => s.Id == assignment.ScoutId);
-            var prospect = prospects.FirstOrDefault(p => p.Id == assignment.ProspectId);
-            if (scout == null || prospect == null) continue;
-
-            assignment.WeeksAssigned++;
-
-            // Progress rate: scout Speed determines how fast scouting progresses
-            // Speed 80 → ~15% per week, Speed 50 → ~8% per week
-            float progressRate = scout.Speed * 0.002f;
-            prospect.ScoutingProgress = Math.Min(1.0f, prospect.ScoutingProgress + progressRate);
-
-            // Check for tier advancement
-            var oldGrade = prospect.ScoutGrade;
-            var newGrade = GetGradeFromProgress(prospect.ScoutingProgress);
-
-            if (newGrade > oldGrade)
-            {
-                prospect.ScoutGrade = newGrade;
-                RevealAttributes(prospect, newGrade, scout.Accuracy, rng);
-                EventBus.Instance?.EmitSignal(EventBus.SignalName.ProspectScouted, prospect.Id, (int)newGrade);
-            }
-
-            // If fully scouted, unassign
-            if (prospect.ScoutGrade == ScoutingGrade.FullyScouted)
-                completedAssignments.Add(assignment);
-        }
-
-        foreach (var completed in completedAssignments)
-            _assignments.Remove(completed);
+        CalculateWeeklyPoints();
+        _currentPoints = _weeklyPointPool;
     }
 
     public void AutoScoutCombine()
@@ -254,29 +219,22 @@ public class ScoutingSystem
         }, errorRange, rng);
     }
 
-    private int GetNextTierCost(Prospect prospect)
+    public void RecalculatePoints()
     {
-        return prospect.ScoutGrade switch
-        {
-            ScoutingGrade.Unscouted => CostInitial,
-            ScoutingGrade.Initial => CostIntermediate,
-            ScoutingGrade.Intermediate => CostAdvanced,
-            ScoutingGrade.Advanced => CostFull,
-            ScoutingGrade.FullyScouted => 0,
-            _ => 0,
-        };
+        CalculateWeeklyPoints();
+        _currentPoints = Math.Min(_currentPoints, _weeklyPointPool);
     }
 
     // --- Save/Load State ---
 
-    public (List<ScoutAssignment> Assignments, int Budget) GetState()
+    public (int WeeklyPool, int CurrentPoints) GetState()
     {
-        return (_assignments, _scoutingBudget);
+        return (_weeklyPointPool, _currentPoints);
     }
 
-    public void SetState(List<ScoutAssignment> assignments, int budget)
+    public void SetState(int weeklyPool, int currentPoints)
     {
-        _assignments = assignments;
-        _scoutingBudget = budget;
+        _weeklyPointPool = weeklyPool;
+        _currentPoints = currentPoints;
     }
 }

@@ -41,9 +41,11 @@ public class CalendarSystem
 
     public int GetTotalWeeksInPhase() => GetPhaseDuration(CurrentPhase);
 
-    public string GetPhaseDisplayName()
+    public string GetPhaseDisplayName() => GetPhaseDisplayName(CurrentPhase);
+
+    public static string GetPhaseDisplayName(GamePhase phase)
     {
-        return CurrentPhase switch
+        return phase switch
         {
             GamePhase.PostSeason => "Post Season",
             GamePhase.CombineScouting => "Combine & Scouting",
@@ -55,8 +57,46 @@ public class CalendarSystem
             GamePhase.RegularSeason => "Regular Season",
             GamePhase.Playoffs => "Playoffs",
             GamePhase.SuperBowl => "Super Bowl",
-            _ => CurrentPhase.ToString()
+            _ => phase.ToString()
         };
+    }
+
+    public string GetPhaseDescription()
+    {
+        return CurrentPhase switch
+        {
+            GamePhase.PostSeason      => "Review your season, evaluate your coaching staff, and plan for the offseason.",
+            GamePhase.CombineScouting => "Evaluate draft prospects at the Combine. Assign scouts to your top targets.",
+            GamePhase.FreeAgency      => "Sign free agents, apply franchise tags, and extend your key players.",
+            GamePhase.PreDraft        => "Finalize your draft board and explore trade-up or trade-down opportunities.",
+            GamePhase.Draft           => "Make your selections! Build the future of your franchise.",
+            GamePhase.PostDraft       => "Sign undrafted free agents, organize your roster, and prepare for camp.",
+            GamePhase.Preseason       => "Set your depth chart, evaluate roster battles, and finalize your 53-man roster.",
+            GamePhase.RegularSeason   => "Game time. Manage your roster, execute trades, and chase a playoff spot.",
+            GamePhase.Playoffs        => "Win or go home. Every game matters now.",
+            GamePhase.SuperBowl       => "The ultimate game. One game for the championship.",
+            _                         => string.Empty,
+        };
+    }
+
+    public int GetAbsoluteWeek()
+    {
+        int total = 0;
+        foreach (var phase in PhaseOrder)
+        {
+            if (phase == CurrentPhase)
+            {
+                total += CurrentWeek;
+                break;
+            }
+            total += PhaseDurations[phase];
+        }
+        return total;
+    }
+
+    public static int GetTotalSeasonWeeks()
+    {
+        return PhaseDurations.Values.Sum();
     }
 
     public bool CanAdvance()

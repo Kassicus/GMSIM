@@ -35,8 +35,7 @@ public partial class EventBus : Node
 
     // Scouting & Draft
     [Signal] public delegate void ProspectScoutedEventHandler(string prospectId, int gradeLevel);
-    [Signal] public delegate void ScoutAssignedEventHandler(string scoutId, string prospectId);
-    [Signal] public delegate void UDFASignedEventHandler(string prospectId, string teamId);
+[Signal] public delegate void UDFASignedEventHandler(string prospectId, string teamId);
 
     // Trades
     [Signal] public delegate void TradeProposedEventHandler(string fromTeamId, string toTeamId);
@@ -65,6 +64,7 @@ public partial class EventBus : Node
     [Signal] public delegate void NotificationCreatedEventHandler(string title, string message, int priority);
     [Signal] public delegate void PlayerSelectedEventHandler(string playerId);
     [Signal] public delegate void TeamSelectedEventHandler(string teamId);
+    [Signal] public delegate void NavigationRequestedEventHandler(string screenName);
 
     public override void _Ready()
     {

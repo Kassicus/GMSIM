@@ -23,6 +23,7 @@ public class SaveData
     public List<Player> Players { get; set; } = new();
     public List<Coach> Coaches { get; set; } = new();
     public List<Scout> Scouts { get; set; } = new();
+    public List<Scout> ScoutMarket { get; set; } = new();
     public List<Prospect> CurrentDraftClass { get; set; } = new();
     public List<DraftPick> AllDraftPicks { get; set; } = new();
 
@@ -46,10 +47,11 @@ public class SaveData
     // Scouting & Draft State (Phase 5)
     public Dictionary<string, float> ScoutingProgress { get; set; } = new();
     public List<string> DraftBoardOrder { get; set; } = new();
-    public List<ScoutAssignment> ScoutAssignments { get; set; } = new();
+    public int ScoutingWeeklyPool { get; set; }
+    public int ScoutingCurrentPoints { get; set; }
     public int DraftCurrentRound { get; set; }
     public int DraftCurrentPick { get; set; }
-    public int ScoutingBudget { get; set; } = 1500;
+    public Dictionary<string, int> DraftBoardTags { get; set; } = new();
 
     // Trading State (Phase 6)
     public List<TradeRecord> TradeHistory { get; set; } = new();

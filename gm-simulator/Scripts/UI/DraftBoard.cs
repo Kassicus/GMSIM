@@ -22,9 +22,6 @@ public partial class DraftBoard : Control
         ThemeColors.Danger,     // Do Not Draft - red
     };
 
-    // Local tag storage: prospectId -> tag index (-1 = no tag)
-    private Dictionary<string, int> _tags = new();
-
     public override void _Ready()
     {
         _posFilter = GetNode<OptionButton>("MarginContainer/VBox/HeaderHBox/PosFilter");
@@ -131,7 +128,7 @@ public partial class DraftBoard : Control
             hbox.AddChild(projLabel);
 
             // Tag indicator
-            if (_tags.TryGetValue(prospect.Id, out int tagIdx) && tagIdx >= 0 && tagIdx < Tags.Length)
+            if (gm.DraftBoardTags.TryGetValue(prospect.Id, out int tagIdx) && tagIdx >= 0 && tagIdx < Tags.Length)
             {
                 var tagLabel = new Label { Text = Tags[tagIdx] };
                 tagLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Caption);
@@ -231,17 +228,20 @@ public partial class DraftBoard : Control
         if (gm == null) return;
 
         gm.DraftBoardOrder.Remove(prospectId);
-        _tags.Remove(prospectId);
+        gm.DraftBoardTags.Remove(prospectId);
         RefreshBoard();
     }
 
     private void CycleTag(string prospectId)
     {
-        if (!_tags.TryGetValue(prospectId, out int current))
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
+        if (!gm.DraftBoardTags.TryGetValue(prospectId, out int current))
             current = -1;
 
         current = (current + 1) % (Tags.Length + 1) - 1; // -1, 0, 1, 2, 3, -1, ...
-        _tags[prospectId] = current;
+        gm.DraftBoardTags[prospectId] = current;
         RefreshBoard();
     }
 

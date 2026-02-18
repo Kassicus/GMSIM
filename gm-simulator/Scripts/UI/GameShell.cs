@@ -64,6 +64,7 @@ public partial class GameShell : Control
             EventBus.Instance.TradeAccepted += OnTradeCompleted;
             EventBus.Instance.CoachingCarouselCompleted += OnCarouselCompleted;
             EventBus.Instance.NotificationCreated += OnNotification;
+            EventBus.Instance.NavigationRequested += OnNavigationRequested;
         }
 
         // Preload all content scenes
@@ -176,6 +177,7 @@ public partial class GameShell : Control
             EventBus.Instance.TradeAccepted -= OnTradeCompleted;
             EventBus.Instance.CoachingCarouselCompleted -= OnCarouselCompleted;
             EventBus.Instance.NotificationCreated -= OnNotification;
+            EventBus.Instance.NavigationRequested -= OnNavigationRequested;
         }
     }
 
@@ -230,6 +232,27 @@ public partial class GameShell : Control
             LoadContent(_draftRoomScene);
         else
             LoadContent(_draftBoardScene);
+    }
+
+    private void OnNavigationRequested(string screenName)
+    {
+        switch (screenName)
+        {
+            case "Dashboard":    LoadContent(_dashboardScene); break;
+            case "Roster":       LoadContent(_rosterViewScene); break;
+            case "DepthChart":   LoadContent(_depthChartScene); break;
+            case "CapSpace":     LoadContent(_capOverviewScene); break;
+            case "Staff":        LoadContent(_staffOverviewScene); break;
+            case "Schedule":     LoadContent(_weekScheduleScene); break;
+            case "Standings":    LoadContent(_standingsScene); break;
+            case "FreeAgency":   LoadContent(_freeAgentMarketScene); break;
+            case "Trade":        LoadContent(_tradeHubScene); break;
+            case "Scouting":     LoadContent(_scoutingHubScene); break;
+            case "DraftBoard":   OnNavDraftBoard(); break;
+            case "Log":          LoadContent(_transactionLogScene); break;
+            case "Leaders":      LoadContent(_leagueLeadersScene); break;
+            case "History":      LoadContent(_teamHistoryScene); break;
+        }
     }
 
     private void OnNavTransactionLog() => LoadContent(_transactionLogScene);
