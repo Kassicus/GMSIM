@@ -46,13 +46,11 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TeamList" type="ItemList" parent="MarginContainer/VBox/TeamListScroll"]
+[node name="TeamContainer" type="VBoxContainer" parent="MarginContainer/VBox/TeamListScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-auto_height = true
-same_column_width = true
-max_columns = 4
+theme_override_constants/separation = 0
 
 [node name="BottomBar" type="HBoxContainer" parent="MarginContainer/VBox"]
 layout_mode = 2
@@ -82,6 +80,5 @@ layout_mode = 2
 custom_minimum_size = Vector2(200, 45)
 text = "Start Game"
 
-[connection signal="item_selected" from="MarginContainer/VBox/TeamListScroll/TeamList" to="." method="OnTeamSelected"]
 [connection signal="pressed" from="MarginContainer/VBox/BottomBar/BackButton" to="." method="OnBackPressed"]
 [connection signal="pressed" from="MarginContainer/VBox/BottomBar/StartButton" to="." method="OnStartPressed"]

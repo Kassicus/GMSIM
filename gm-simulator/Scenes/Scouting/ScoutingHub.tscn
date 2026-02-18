@@ -60,6 +60,14 @@ text = "Grade:"
 layout_mode = 2
 custom_minimum_size = Vector2(120, 0)
 
+[node name="RoundLabel" type="Label" parent="MarginContainer/VBox/FilterHBox"]
+layout_mode = 2
+text = "Round:"
+
+[node name="RoundFilter" type="OptionButton" parent="MarginContainer/VBox/FilterHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+
 [node name="SearchLabel" type="Label" parent="MarginContainer/VBox/FilterHBox"]
 layout_mode = 2
 text = "Search:"
@@ -104,4 +112,5 @@ theme_override_constants/separation = 2
 
 [connection signal="item_selected" from="MarginContainer/VBox/FilterHBox/PosFilter" to="." method="OnFilterChanged"]
 [connection signal="item_selected" from="MarginContainer/VBox/FilterHBox/GradeFilter" to="." method="OnFilterChanged"]
+[connection signal="item_selected" from="MarginContainer/VBox/FilterHBox/RoundFilter" to="." method="OnFilterChanged"]
 [connection signal="text_changed" from="MarginContainer/VBox/FilterHBox/SearchField" to="." method="OnSearchChanged"]

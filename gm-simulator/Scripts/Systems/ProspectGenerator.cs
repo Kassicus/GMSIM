@@ -231,6 +231,19 @@ public class ProspectGenerator
         if (rng.NextDouble() < 0.12)
             prospect.RedFlags = PickRandom(RedFlagPool, 1 + rng.Next(2), rng);
 
+        // TalentRound: based purely on true overall rating
+        prospect.TalentRound = actual switch
+        {
+            >= 80 => 1,
+            >= 73 => 2,
+            >= 66 => 3,
+            >= 59 => 4,
+            >= 52 => 5,
+            >= 45 => 6,
+            >= 38 => 7,
+            _ => 8, // UDFA
+        };
+
         // DraftValue: based on overall, potential, position value
         float posValue = GetPositionDraftValue(position);
         prospect.DraftValue = actual * 1.5f + potential * 0.5f + posValue + rng.Next(-5, 6);

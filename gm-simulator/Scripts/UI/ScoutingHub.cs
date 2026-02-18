@@ -12,6 +12,7 @@ public partial class ScoutingHub : Control
     private Label _budgetLabel = null!;
     private OptionButton _posFilter = null!;
     private OptionButton _gradeFilter = null!;
+    private OptionButton _roundFilter = null!;
     private LineEdit _searchField = null!;
     private VBoxContainer _scoutList = null!;
     private VBoxContainer _prospectList = null!;
@@ -24,6 +25,7 @@ public partial class ScoutingHub : Control
         _budgetLabel = GetNode<Label>("MarginContainer/VBox/HeaderHBox/BudgetLabel");
         _posFilter = GetNode<OptionButton>("MarginContainer/VBox/FilterHBox/PosFilter");
         _gradeFilter = GetNode<OptionButton>("MarginContainer/VBox/FilterHBox/GradeFilter");
+        _roundFilter = GetNode<OptionButton>("MarginContainer/VBox/FilterHBox/RoundFilter");
         _searchField = GetNode<LineEdit>("MarginContainer/VBox/FilterHBox/SearchField");
         _scoutList = GetNode<VBoxContainer>("MarginContainer/VBox/HSplit/ScoutPanel/ScoutVBox/ScoutList");
         _prospectList = GetNode<VBoxContainer>("MarginContainer/VBox/HSplit/ProspectPanel/ProspectScroll/ProspectList");
@@ -65,6 +67,11 @@ public partial class ScoutingHub : Control
         _gradeFilter.AddItem("Intermediate", 3);
         _gradeFilter.AddItem("Advanced", 4);
         _gradeFilter.AddItem("Fully Scouted", 5);
+
+        _roundFilter.AddItem("All Rounds", 0);
+        for (int r = 1; r <= 7; r++)
+            _roundFilter.AddItem($"Round {r}", r);
+        _roundFilter.AddItem("UDFA", 8);
     }
 
     private void RefreshScoutList()
@@ -224,6 +231,26 @@ public partial class ScoutingHub : Control
             roundLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
             hbox.AddChild(roundLabel);
 
+            var talentLabel = new Label
+            {
+                CustomMinimumSize = new Vector2(50, 0),
+            };
+            talentLabel.AddThemeFontSizeOverride("font_size", ThemeFonts.Small);
+            if (prospect.ScoutGrade == ScoutingGrade.FullyScouted)
+            {
+                talentLabel.Text = prospect.TalentRound <= 7 ? $"Tal {prospect.TalentRound}" : "UDFA";
+                if (prospect.TalentRound < prospect.ProjectedRound)
+                    talentLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
+                else if (prospect.TalentRound > prospect.ProjectedRound)
+                    talentLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
+            }
+            else
+            {
+                talentLabel.Text = "?";
+                talentLabel.AddThemeColorOverride("font_color", ThemeColors.TextTertiary);
+            }
+            hbox.AddChild(talentLabel);
+
             var viewBtn = new Button { Text = "View", CustomMinimumSize = new Vector2(50, 0) };
             string pid = prospect.Id;
             viewBtn.Pressed += () => OpenProspectCard(pid);
@@ -268,6 +295,15 @@ public partial class ScoutingHub : Control
         {
             var targetGrade = (ScoutingGrade)(gradeIdx - 1);
             filtered = filtered.Where(p => p.ScoutGrade == targetGrade);
+        }
+
+        // Round filter (projected round)
+        int roundIdx = _roundFilter.Selected;
+        if (roundIdx > 0)
+        {
+            int targetRound = roundIdx; // 1-7 map directly, 8 = UDFA
+            filtered = filtered.Where(p => p.ProjectedRound == targetRound ||
+                (targetRound == 8 && p.ProjectedRound > 7));
         }
 
         // Search filter

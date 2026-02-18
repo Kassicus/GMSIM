@@ -34,6 +34,7 @@ public class Prospect
 
     // Draft
     public int ProjectedRound { get; set; }
+    public int TalentRound { get; set; }
     public float DraftValue { get; set; }
     public List<string> RedFlags { get; set; } = new();
     public List<string> Strengths { get; set; } = new();

@@ -126,6 +126,14 @@ public partial class GameManager : Node
         InitializeAIProfiles();
         CalculateAllTeamCaps();
 
+        // Generate initial draft class so scouting is available from game start
+        if (_prospectGenerator != null)
+        {
+            CurrentDraftClass = _prospectGenerator.GenerateDraftClass(Calendar.CurrentYear, Rng);
+            GD.Print($"Generated {CurrentDraftClass.Count} draft prospects for {Calendar.CurrentYear}.");
+            Scouting.InitializeForDraftCycle();
+        }
+
         IsGameActive = true;
 
         GD.Print($"New game started. Team: {GetPlayerTeam()?.FullName}, Seed: {seed}");

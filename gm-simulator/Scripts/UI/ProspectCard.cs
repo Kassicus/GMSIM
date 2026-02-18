@@ -60,7 +60,21 @@ public partial class ProspectCard : Window
         _gradeBar.Value = _prospect.ScoutingProgress * 100f;
         _gradeBar.Modulate = ThemeColors.GetScoutGradeColor(_prospect.ScoutGrade);
 
-        _projectedLabel.Text = $"Projected: Round {_prospect.ProjectedRound}";
+        if (_prospect.ScoutGrade == ScoutingGrade.FullyScouted)
+        {
+            string talentText = _prospect.TalentRound <= 7 ? $"Round {_prospect.TalentRound}" : "UDFA";
+            _projectedLabel.Text = $"Projected: Round {_prospect.ProjectedRound} | True Talent: {talentText}";
+
+            if (_prospect.TalentRound < _prospect.ProjectedRound)
+                _projectedLabel.AddThemeColorOverride("font_color", ThemeColors.Success);
+            else if (_prospect.TalentRound > _prospect.ProjectedRound)
+                _projectedLabel.AddThemeColorOverride("font_color", ThemeColors.Danger);
+        }
+        else
+        {
+            _projectedLabel.Text = $"Projected: Round {_prospect.ProjectedRound}";
+            _projectedLabel.RemoveThemeColorOverride("font_color");
+        }
 
         PopulateCombine();
         PopulateAttributes();
