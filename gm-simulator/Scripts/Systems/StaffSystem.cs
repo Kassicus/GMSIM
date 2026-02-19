@@ -1,3 +1,4 @@
+using Godot;
 using GMSimulator.Core;
 using GMSimulator.Models;
 using GMSimulator.Models.Enums;
@@ -14,10 +15,17 @@ public class StaffSystem
     private readonly Func<string, Team?> _getTeam;
     private readonly Func<CalendarSystem> _getCalendar;
     private readonly Func<string> _getPlayerTeamId;
+    private readonly Func<HashSet<string>> _getActivePlayoffTeamIds;
 
     private List<Coach> _coachingMarket = new();
 
+    // Coaching Market state
+    private List<InterviewRequest> _interviewRequests = new();
+    private HashSet<string> _promotionIntentCoachIds = new();      // Player's protection list
+    private Dictionary<string, string> _aiPromotionIntents = new(); // AI teamId -> coachId
+
     public IReadOnlyList<Coach> CoachingMarket => _coachingMarket;
+    public IReadOnlyList<InterviewRequest> InterviewRequests => _interviewRequests;
 
     public StaffSystem(
         Func<List<Team>> getTeams,
@@ -27,7 +35,8 @@ public class StaffSystem
         Func<string, Coach?> getCoach,
         Func<string, Team?> getTeam,
         Func<CalendarSystem> getCalendar,
-        Func<string> getPlayerTeamId)
+        Func<string> getPlayerTeamId,
+        Func<HashSet<string>>? getActivePlayoffTeamIds = null)
     {
         _getTeams = getTeams;
         _getPlayers = getPlayers;
@@ -37,6 +46,7 @@ public class StaffSystem
         _getTeam = getTeam;
         _getCalendar = getCalendar;
         _getPlayerTeamId = getPlayerTeamId;
+        _getActivePlayoffTeamIds = getActivePlayoffTeamIds ?? (() => new HashSet<string>());
     }
 
     // --- Scheme Fit ---
@@ -81,8 +91,6 @@ public class StaffSystem
                 return 0f;
         }
 
-        // Compare scheme-critical positions to overall offense average
-        // If scheme positions are stronger than average → good fit
         float diff = targetOvr - avgOvr;
         return Math.Clamp(diff / 10f, -1f, 1f);
     }
@@ -111,7 +119,7 @@ public class StaffSystem
                 break;
             case SchemeType.Hybrid:
             case SchemeType.MultipleDefense:
-                return 0.1f; // versatile scheme, slight positive (less mismatch)
+                return 0.1f;
             default:
                 return 0f;
         }
@@ -132,21 +140,17 @@ public class StaffSystem
     {
         float total = 0f;
 
-        // HC GameManagement: ±5
         if (team.HeadCoachId != null)
         {
             var hc = _getCoach(team.HeadCoachId);
             if (hc != null)
             {
                 total += (hc.GameManagement - 65f) / 5f;
-
-                // Scheme fit: ±2.5
                 float schemeFit = CalculateSchemeFit(team, hc);
                 total += schemeFit * 2.5f;
             }
         }
 
-        // OC OffenseRating: ±2.4
         if (team.OffensiveCoordinatorId != null)
         {
             var oc = _getCoach(team.OffensiveCoordinatorId);
@@ -154,7 +158,6 @@ public class StaffSystem
                 total += (oc.OffenseRating - 65f) / 10f;
         }
 
-        // DC DefenseRating: ±2.4
         if (team.DefensiveCoordinatorId != null)
         {
             var dc = _getCoach(team.DefensiveCoordinatorId);
@@ -176,7 +179,6 @@ public class StaffSystem
         Coach? coach = FindCoachByRole(team, targetRole);
         if (coach == null) return 0f;
 
-        // 90 dev → +12.5%, 65 dev → 0%, 50 dev → -7.5%
         return (coach.PlayerDevelopment - 65f) / 200f;
     }
 
@@ -217,16 +219,20 @@ public class StaffSystem
         }
     }
 
-    // --- Coaching Carousel ---
+    // =====================================================
+    // COACHING MARKET — Market Lifecycle Methods
+    // =====================================================
 
-    public List<string> RunCoachingCarousel()
+    /// <summary>
+    /// Phase 1 of market opening: Fire underperforming AI HCs based on owner patience.
+    /// </summary>
+    public List<string> FireUnderperformingHCs()
     {
         var changes = new List<string>();
         var rng = _getRng();
         var teams = _getTeams();
         var playerTeamId = _getPlayerTeamId();
 
-        // Phase 1: Evaluate and fire underperforming HCs (AI teams only)
         foreach (var team in teams)
         {
             if (team.Id == playerTeamId) continue;
@@ -241,60 +247,580 @@ public class StaffSystem
                 changes.Add($"{team.FullName} fired HC {hc.FullName}");
                 FireCoachInternal(team, hc);
                 _coachingMarket.Add(hc);
+                CleanupInterviewsForCoach(hc.Id);
                 EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachFired, hc.Id, team.Id);
             }
-        }
-
-        // Phase 2: Generate new coaches for the market
-        int marketSize = Math.Max(8, _coachingMarket.Count(c => c.Role == CoachRole.HeadCoach) + 5);
-        var newCoaches = GenerateCoachingMarket(marketSize);
-        _coachingMarket.AddRange(newCoaches);
-        _getCoaches().AddRange(newCoaches);
-
-        // Phase 3: AI teams hire head coaches
-        foreach (var team in teams)
-        {
-            if (team.Id == playerTeamId) continue;
-            if (team.HeadCoachId != null) continue;
-
-            var bestHC = _coachingMarket
-                .Where(c => c.TeamId == null)
-                .OrderByDescending(c => c.Prestige * 0.4f + c.GameManagement * 0.3f
-                    + c.OffenseRating * 0.15f + c.DefenseRating * 0.15f)
-                .FirstOrDefault();
-
-            if (bestHC != null)
-            {
-                HireCoachInternal(team, bestHC, CoachRole.HeadCoach);
-                _coachingMarket.Remove(bestHC);
-                changes.Add($"{team.FullName} hired HC {bestHC.FullName}");
-                EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, bestHC.Id, team.Id, (int)CoachRole.HeadCoach);
-            }
-        }
-
-        // Phase 4: Fill coordinator/position coach vacancies for AI teams
-        foreach (var team in teams)
-        {
-            if (team.Id == playerTeamId) continue;
-            FillVacancies(team, changes, rng);
         }
 
         return changes;
     }
 
+    /// <summary>
+    /// Phase 2 of market opening: Generate 8-13 free agent coaches for the market.
+    /// </summary>
+    public void GenerateAndAddMarketCoaches()
+    {
+        int marketSize = Math.Max(8, _coachingMarket.Count(c => c.Role == CoachRole.HeadCoach) + 5);
+        marketSize = Math.Min(marketSize, 13);
+        var newCoaches = GenerateCoachingMarket(marketSize);
+        _coachingMarket.AddRange(newCoaches);
+        _getCoaches().AddRange(newCoaches);
+        GD.Print($"Coaching market: Generated {newCoaches.Count} free agent coaches. Market total: {_coachingMarket.Count}");
+    }
+
+    /// <summary>
+    /// Determine which AI teams declare promotion intent for their OC/DC when HC is fired.
+    /// ~30% chance per AI team with vacant HC slot.
+    /// </summary>
+    public void DetermineAIPromotionIntents()
+    {
+        _aiPromotionIntents.Clear();
+        var rng = _getRng();
+        var teams = _getTeams();
+        var playerTeamId = _getPlayerTeamId();
+
+        foreach (var team in teams)
+        {
+            if (team.Id == playerTeamId) continue;
+            if (team.HeadCoachId != null) continue; // Only teams with HC vacancy
+
+            if (rng.NextDouble() < 0.3)
+            {
+                // Pick best OC or DC as internal candidate
+                Coach? bestCandidate = null;
+                float bestScore = -1;
+
+                if (team.OffensiveCoordinatorId != null)
+                {
+                    var oc = _getCoach(team.OffensiveCoordinatorId);
+                    if (oc != null)
+                    {
+                        float score = oc.GameManagement * 0.4f + oc.OffenseRating * 0.3f + oc.Prestige * 0.3f;
+                        if (score > bestScore) { bestScore = score; bestCandidate = oc; }
+                    }
+                }
+
+                if (team.DefensiveCoordinatorId != null)
+                {
+                    var dc = _getCoach(team.DefensiveCoordinatorId);
+                    if (dc != null)
+                    {
+                        float score = dc.GameManagement * 0.4f + dc.DefenseRating * 0.3f + dc.Prestige * 0.3f;
+                        if (score > bestScore) { bestScore = score; bestCandidate = dc; }
+                    }
+                }
+
+                if (bestCandidate != null)
+                {
+                    _aiPromotionIntents[team.Id] = bestCandidate.Id;
+                    GD.Print($"Coaching market: {team.FullName} declares promotion intent for {bestCandidate.FullName}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Weekly AI coaching market processing. Called each week during market window.
+    /// </summary>
+    public void ProcessCoachingMarketWeek(int week)
+    {
+        var rng = _getRng();
+        var teams = _getTeams();
+        var playerTeamId = _getPlayerTeamId();
+        var activePlayoffTeamIds = _getActivePlayoffTeamIds();
+
+        GD.Print($"Coaching market week {week}: Processing AI activity...");
+
+        // Weeks 1-2: AI fires underperforming non-HC staff, sends HC interview requests
+        if (week <= 2)
+        {
+            foreach (var team in teams)
+            {
+                if (team.Id == playerTeamId) continue;
+                if (activePlayoffTeamIds.Contains(team.Id)) continue; // Playoff teams can't act
+                if (team.HeadCoachId != null) continue; // Only teams needing HC
+
+                // Send interview requests for HC candidates from other teams
+                AIRequestHCInterviews(team, rng);
+            }
+        }
+
+        // Weeks 3-4: AI hires HCs from market + approved interviews
+        if (week >= 3 && week <= 4)
+        {
+            foreach (var team in teams)
+            {
+                if (team.Id == playerTeamId) continue;
+                if (activePlayoffTeamIds.Contains(team.Id)) continue;
+                if (team.HeadCoachId != null) continue;
+
+                // First try approved interviews
+                var approvedHC = _interviewRequests
+                    .Where(r => r.RequestingTeamId == team.Id
+                        && r.Status == InterviewStatus.Approved
+                        && r.TargetRole == CoachRole.HeadCoach)
+                    .OrderByDescending(r =>
+                    {
+                        var c = _getCoach(r.CoachId);
+                        return c != null ? c.Prestige * 0.4f + c.GameManagement * 0.3f
+                            + c.OffenseRating * 0.15f + c.DefenseRating * 0.15f : 0f;
+                    })
+                    .FirstOrDefault();
+
+                if (approvedHC != null)
+                {
+                    var coach = _getCoach(approvedHC.CoachId);
+                    if (coach != null)
+                    {
+                        // Poach from old team
+                        var oldTeam = _getTeam(approvedHC.CurrentTeamId);
+                        if (oldTeam != null)
+                            RemoveCoachFromRole(oldTeam, coach);
+
+                        HireCoachInternal(team, coach, CoachRole.HeadCoach);
+                        approvedHC.Status = InterviewStatus.Hired;
+                        ExpireOtherRequestsForCoach(coach.Id, approvedHC.Id);
+                        _coachingMarket.Remove(coach);
+                        GD.Print($"Coaching market: {team.FullName} hired HC {coach.FullName} (from interview)");
+                        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, coach.Id, team.Id, (int)CoachRole.HeadCoach);
+                        continue;
+                    }
+                }
+
+                // Check if team declared promotion intent — promote that coach
+                if (_aiPromotionIntents.TryGetValue(team.Id, out var promoCoachId))
+                {
+                    var promoCoach = _getCoach(promoCoachId);
+                    if (promoCoach != null && promoCoach.TeamId == team.Id)
+                    {
+                        RemoveCoachFromRole(team, promoCoach);
+                        promoCoach.Role = CoachRole.HeadCoach;
+                        team.HeadCoachId = promoCoach.Id;
+                        promoCoach.GameManagement = Math.Min(99, promoCoach.GameManagement + 3);
+                        _aiPromotionIntents.Remove(team.Id);
+                        GD.Print($"Coaching market: {team.FullName} promoted {promoCoach.FullName} to HC");
+                        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, promoCoach.Id, team.Id, (int)CoachRole.HeadCoach);
+                        continue;
+                    }
+                }
+
+                // Fall back to market free agents
+                var bestHC = _coachingMarket
+                    .Where(c => c.TeamId == null)
+                    .OrderByDescending(c => c.Prestige * 0.4f + c.GameManagement * 0.3f
+                        + c.OffenseRating * 0.15f + c.DefenseRating * 0.15f)
+                    .FirstOrDefault();
+
+                if (bestHC != null)
+                {
+                    HireCoachInternal(team, bestHC, CoachRole.HeadCoach);
+                    _coachingMarket.Remove(bestHC);
+                    ExpireOtherRequestsForCoach(bestHC.Id, null);
+                    GD.Print($"Coaching market: {team.FullName} hired HC {bestHC.FullName} (from market)");
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, bestHC.Id, team.Id, (int)CoachRole.HeadCoach);
+                }
+            }
+        }
+
+        // Weeks 4-5: AI fills coordinator and position coach vacancies
+        if (week >= 4)
+        {
+            foreach (var team in teams)
+            {
+                if (team.Id == playerTeamId) continue;
+                if (activePlayoffTeamIds.Contains(team.Id)) continue;
+
+                var changes = new List<string>();
+                FillVacancies(team, changes, rng);
+                foreach (var change in changes)
+                    GD.Print($"Coaching market: {change}");
+            }
+        }
+    }
+
+    private void AIRequestHCInterviews(Team requestingTeam, Random rng)
+    {
+        var activePlayoffTeamIds = _getActivePlayoffTeamIds();
+        var candidates = GetInterviewCandidatesForTeam(requestingTeam.Id);
+
+        // Pick up to 2 candidates to interview
+        var topCandidates = candidates
+            .OrderByDescending(c => c.GameManagement * 0.3f + c.OffenseRating * 0.2f
+                + c.DefenseRating * 0.2f + c.Prestige * 0.3f)
+            .Take(2);
+
+        foreach (var candidate in topCandidates)
+        {
+            if (rng.NextDouble() > 0.6) continue; // 60% chance to actually request
+
+            // Already have a pending/approved request for this coach?
+            if (_interviewRequests.Any(r => r.RequestingTeamId == requestingTeam.Id
+                && r.CoachId == candidate.Id
+                && (r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved)))
+                continue;
+
+            var result = CreateInterviewRequest(requestingTeam.Id, candidate.Id,
+                candidate.TeamId ?? "", CoachRole.HeadCoach);
+
+            // If targeting player's coach, emit signal
+            if (candidate.TeamId == _getPlayerTeamId() && result.request != null)
+            {
+                EventBus.Instance?.EmitSignal(EventBus.SignalName.PlayerCoachTargeted,
+                    candidate.Id, requestingTeam.Id, (int)CoachRole.HeadCoach);
+            }
+        }
+    }
+
+    /// <summary>
+    /// End of market window: auto-fill all remaining vacancies, expire pending requests.
+    /// </summary>
+    public void CloseMarketFillVacancies()
+    {
+        var rng = _getRng();
+        var teams = _getTeams();
+        var playerTeamId = _getPlayerTeamId();
+
+        // Expire all pending/approved requests
+        foreach (var req in _interviewRequests.Where(r =>
+            r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved))
+        {
+            req.Status = InterviewStatus.Expired;
+        }
+
+        // Fill all AI vacancies (including HC)
+        foreach (var team in teams)
+        {
+            if (team.Id == playerTeamId) continue;
+
+            // Fill HC if still vacant
+            if (team.HeadCoachId == null)
+            {
+                var bestHC = _coachingMarket
+                    .Where(c => c.TeamId == null)
+                    .OrderByDescending(c => c.Prestige * 0.4f + c.GameManagement * 0.3f
+                        + c.OffenseRating * 0.15f + c.DefenseRating * 0.15f)
+                    .FirstOrDefault();
+
+                if (bestHC != null)
+                {
+                    HireCoachInternal(team, bestHC, CoachRole.HeadCoach);
+                    _coachingMarket.Remove(bestHC);
+                    GD.Print($"Market close: {team.FullName} hired HC {bestHC.FullName}");
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, bestHC.Id, team.Id, (int)CoachRole.HeadCoach);
+                }
+                else
+                {
+                    var newHC = GenerateSingleCoach(CoachRole.HeadCoach, rng);
+                    _getCoaches().Add(newHC);
+                    HireCoachInternal(team, newHC, CoachRole.HeadCoach);
+                    GD.Print($"Market close: {team.FullName} hired generated HC {newHC.FullName}");
+                    EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, newHC.Id, team.Id, (int)CoachRole.HeadCoach);
+                }
+            }
+
+            // Fill remaining vacancies
+            var changes = new List<string>();
+            FillVacancies(team, changes, rng);
+        }
+
+        // Clear AI promotion intents
+        _aiPromotionIntents.Clear();
+
+        GD.Print("Coaching market closed. All vacancies filled.");
+    }
+
+    // =====================================================
+    // COACHING MARKET — Interview System
+    // =====================================================
+
+    /// <summary>
+    /// Player requests an interview with an employed coach for a target role.
+    /// Returns (success, message, request).
+    /// </summary>
+    public (bool Success, string Message, InterviewRequest? Request) RequestInterview(string coachId, CoachRole targetRole)
+    {
+        var playerTeamId = _getPlayerTeamId();
+        var coach = _getCoach(coachId);
+        if (coach == null)
+            return (false, "Coach not found.", null);
+
+        if (coach.TeamId == null)
+            return (false, "Coach is a free agent — hire directly from the market.", null);
+
+        if (coach.TeamId == playerTeamId)
+            return (false, "Coach is already on your team.", null);
+
+        if (coach.Role == CoachRole.HeadCoach)
+            return (false, "Cannot interview another team's head coach.", null);
+
+        var activePlayoffTeamIds = _getActivePlayoffTeamIds();
+        if (activePlayoffTeamIds.Contains(coach.TeamId))
+            return (false, "Coach's team is still in the playoffs.", null);
+
+        // Check for existing request
+        if (_interviewRequests.Any(r => r.RequestingTeamId == playerTeamId
+            && r.CoachId == coachId
+            && (r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved)))
+            return (false, "You already have an active interview request for this coach.", null);
+
+        var result = CreateInterviewRequest(playerTeamId, coachId, coach.TeamId, targetRole);
+        return result;
+    }
+
+    private (bool Success, string Message, InterviewRequest? request) CreateInterviewRequest(
+        string requestingTeamId, string coachId, string currentTeamId, CoachRole targetRole)
+    {
+        var coach = _getCoach(coachId);
+        if (coach == null)
+            return (false, "Coach not found.", null);
+
+        var calendar = _getCalendar();
+        var request = new InterviewRequest
+        {
+            Id = Guid.NewGuid().ToString(),
+            RequestingTeamId = requestingTeamId,
+            CoachId = coachId,
+            CurrentTeamId = currentTeamId,
+            TargetRole = targetRole,
+            RequestWeek = calendar.CurrentWeek,
+        };
+
+        // Evaluate blocking
+        var (blocked, reason) = EvaluateBlocking(coach, currentTeamId, targetRole);
+
+        if (blocked)
+        {
+            request.Status = InterviewStatus.Blocked;
+            request.BlockReason = reason;
+            request.Notes = reason == BlockReason.LateralMove
+                ? "Blocked: lateral move (same role)"
+                : "Blocked: team has declared promotion intent";
+            _interviewRequests.Add(request);
+
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.InterviewBlocked,
+                request.Id, coachId, reason.ToString());
+
+            GD.Print($"Interview BLOCKED: {coach.FullName} to {_getTeam(requestingTeamId)?.FullName} as {targetRole} — {reason}");
+            return (true, $"Interview blocked: {request.Notes}", request);
+        }
+
+        request.Status = InterviewStatus.Approved;
+        request.BlockReason = BlockReason.None;
+        _interviewRequests.Add(request);
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.InterviewRequested,
+            request.Id, coachId, requestingTeamId);
+
+        GD.Print($"Interview APPROVED: {coach.FullName} to {_getTeam(requestingTeamId)?.FullName} as {targetRole}");
+        return (true, $"Interview approved for {coach.FullName} as {targetRole}.", request);
+    }
+
+    private (bool Blocked, BlockReason Reason) EvaluateBlocking(Coach coach, string currentTeamId, CoachRole targetRole)
+    {
+        // Rule 1: Lateral move (same role) → BLOCK
+        if (coach.Role == targetRole)
+            return (true, BlockReason.LateralMove);
+
+        // Rule 2: Target is HC, current team has no HC, and coach is declared promotion intent → BLOCK
+        if (targetRole == CoachRole.HeadCoach)
+        {
+            var currentTeam = _getTeam(currentTeamId);
+            if (currentTeam != null && currentTeam.HeadCoachId == null)
+            {
+                // Check player's protection list
+                if (currentTeamId == _getPlayerTeamId() && _promotionIntentCoachIds.Contains(coach.Id))
+                    return (true, BlockReason.PlannedPromotion);
+
+                // Check AI promotion intents
+                if (_aiPromotionIntents.TryGetValue(currentTeamId, out var intentCoachId) && intentCoachId == coach.Id)
+                    return (true, BlockReason.PlannedPromotion);
+            }
+        }
+
+        // Rule 3: All other cases → APPROVE
+        return (false, BlockReason.None);
+    }
+
+    /// <summary>
+    /// Hire a coach from an approved interview. Removes from old team, assigns to requesting team.
+    /// </summary>
+    public (bool Success, string Message) HireFromInterview(string requestId)
+    {
+        var request = _interviewRequests.FirstOrDefault(r => r.Id == requestId);
+        if (request == null)
+            return (false, "Interview request not found.");
+
+        if (request.Status != InterviewStatus.Approved)
+            return (false, $"Interview is not approved (status: {request.Status}).");
+
+        var playerTeamId = _getPlayerTeamId();
+        if (request.RequestingTeamId != playerTeamId)
+            return (false, "This interview is not for your team.");
+
+        var coach = _getCoach(request.CoachId);
+        if (coach == null)
+            return (false, "Coach no longer exists.");
+
+        var playerTeam = _getTeam(playerTeamId);
+        if (playerTeam == null)
+            return (false, "Team not found.");
+
+        if (IsRoleFilled(playerTeam, request.TargetRole))
+            return (false, $"The {request.TargetRole} position is already filled.");
+
+        // Remove from old team
+        if (coach.TeamId != null)
+        {
+            var oldTeam = _getTeam(coach.TeamId);
+            if (oldTeam != null)
+                RemoveCoachFromRole(oldTeam, coach);
+        }
+
+        // Hire to new team
+        HireCoachInternal(playerTeam, coach, request.TargetRole);
+        _coachingMarket.Remove(coach);
+
+        // Update request status
+        request.Status = InterviewStatus.Hired;
+        ExpireOtherRequestsForCoach(coach.Id, request.Id);
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, coach.Id, playerTeamId, (int)request.TargetRole);
+        return (true, $"Hired {coach.FullName} as {request.TargetRole}.");
+    }
+
+    /// <summary>
+    /// Player declares a coach as "HC candidate" to enable blocking interview requests.
+    /// </summary>
+    public (bool Success, string Message) DeclarePromotionIntent(string coachId)
+    {
+        var playerTeamId = _getPlayerTeamId();
+        var coach = _getCoach(coachId);
+        if (coach == null)
+            return (false, "Coach not found.");
+        if (coach.TeamId != playerTeamId)
+            return (false, "Coach is not on your team.");
+        if (coach.Role == CoachRole.HeadCoach)
+            return (false, "Coach is already the head coach.");
+
+        var team = _getTeam(playerTeamId);
+        if (team?.HeadCoachId != null)
+            return (false, "Your HC position is already filled — protection not needed.");
+
+        _promotionIntentCoachIds.Add(coachId);
+        GD.Print($"Promotion intent declared for {coach.FullName}");
+        return (true, $"Declared promotion intent for {coach.FullName}. Interview requests for this coach can now be blocked.");
+    }
+
+    /// <summary>
+    /// Remove promotion protection from a coach.
+    /// </summary>
+    public (bool Success, string Message) RemovePromotionIntent(string coachId)
+    {
+        if (!_promotionIntentCoachIds.Remove(coachId))
+            return (false, "Coach was not on the protection list.");
+
+        var coach = _getCoach(coachId);
+        return (true, $"Removed promotion intent for {coach?.FullName ?? coachId}.");
+    }
+
+    /// <summary>
+    /// Returns employed coaches on non-active-playoff teams, excluding HCs.
+    /// These are the coaches available for interview requests.
+    /// </summary>
+    public List<Coach> GetInterviewCandidates()
+    {
+        var activePlayoffTeamIds = _getActivePlayoffTeamIds();
+        var playerTeamId = _getPlayerTeamId();
+
+        return _getCoaches()
+            .Where(c => c.TeamId != null
+                && c.TeamId != playerTeamId
+                && c.Role != CoachRole.HeadCoach
+                && !activePlayoffTeamIds.Contains(c.TeamId))
+            .ToList();
+    }
+
+    private List<Coach> GetInterviewCandidatesForTeam(string requestingTeamId)
+    {
+        var activePlayoffTeamIds = _getActivePlayoffTeamIds();
+
+        return _getCoaches()
+            .Where(c => c.TeamId != null
+                && c.TeamId != requestingTeamId
+                && c.Role != CoachRole.HeadCoach
+                && !activePlayoffTeamIds.Contains(c.TeamId))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns interview requests targeting the player's coaches.
+    /// </summary>
+    public List<InterviewRequest> GetIncomingInterviewRequests()
+    {
+        var playerTeamId = _getPlayerTeamId();
+        return _interviewRequests
+            .Where(r => r.CurrentTeamId == playerTeamId
+                && (r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns interview requests made by the player's team.
+    /// </summary>
+    public List<InterviewRequest> GetOutgoingInterviewRequests()
+    {
+        var playerTeamId = _getPlayerTeamId();
+        return _interviewRequests
+            .Where(r => r.RequestingTeamId == playerTeamId)
+            .ToList();
+    }
+
+    // =====================================================
+    // COACHING MARKET — Helper Methods
+    // =====================================================
+
+    private void CleanupInterviewsForCoach(string coachId)
+    {
+        foreach (var req in _interviewRequests.Where(r => r.CoachId == coachId
+            && (r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved)))
+        {
+            req.Status = InterviewStatus.Expired;
+            req.Notes = "Coach was fired/released";
+        }
+        _promotionIntentCoachIds.Remove(coachId);
+
+        // Remove from AI promotion intents if present
+        var keysToRemove = _aiPromotionIntents.Where(kv => kv.Value == coachId).Select(kv => kv.Key).ToList();
+        foreach (var key in keysToRemove)
+            _aiPromotionIntents.Remove(key);
+    }
+
+    private void ExpireOtherRequestsForCoach(string coachId, string? exceptRequestId)
+    {
+        foreach (var req in _interviewRequests.Where(r => r.CoachId == coachId
+            && r.Id != exceptRequestId
+            && (r.Status == InterviewStatus.Pending || r.Status == InterviewStatus.Approved)))
+        {
+            req.Status = InterviewStatus.Expired;
+            req.Notes = "Coach was hired elsewhere";
+        }
+    }
+
+    // =====================================================
+    // LEGACY CAROUSEL (kept for backward compat, now called only by CloseMarket)
+    // =====================================================
+
     private bool ShouldFireHC(Team team, Coach hc, Random rng)
     {
-        int winThreshold = team.OwnerPatience / 10; // patience 50 → need 5 wins
+        int winThreshold = team.OwnerPatience / 10;
         int wins = team.CurrentRecord.Wins;
 
         if (wins < winThreshold)
         {
-            // Below threshold: high chance to fire, reduced by HC prestige
             float fireChance = 0.7f - (hc.Prestige / 200f);
             return rng.NextDouble() < fireChance;
         }
 
-        // Teams with low patience and mediocre record: small fire chance
         if (team.OwnerPatience < 30 && wins < 9)
             return rng.NextDouble() < 0.15f;
 
@@ -315,6 +841,7 @@ public class StaffSystem
 
         FireCoachInternal(team, coach);
         _coachingMarket.Add(coach);
+        CleanupInterviewsForCoach(coachId);
         EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachFired, coachId, playerTeamId);
         return (true, $"Fired {coach.FullName}.");
     }
@@ -328,12 +855,12 @@ public class StaffSystem
         var coach = _coachingMarket.FirstOrDefault(c => c.Id == coachId);
         if (coach == null) return (false, "Coach not available in market.");
 
-        // Check if role is already filled
         if (IsRoleFilled(team, role))
             return (false, $"The {role} position is already filled. Fire the current coach first.");
 
         HireCoachInternal(team, coach, role);
         _coachingMarket.Remove(coach);
+        ExpireOtherRequestsForCoach(coachId, null);
         EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, coachId, playerTeamId, (int)role);
         return (true, $"Hired {coach.FullName} as {role}.");
     }
@@ -353,15 +880,13 @@ public class StaffSystem
         if (IsRoleFilled(team, CoachRole.HeadCoach))
             return (false, "Head Coach position is already filled.");
 
-        // Remove from old role
         RemoveCoachFromRole(team, coach);
-
-        // Assign to new role
         coach.Role = newRole;
         team.HeadCoachId = coach.Id;
-
-        // Boost GameManagement slightly for promotion
         coach.GameManagement = Math.Min(99, coach.GameManagement + 3);
+
+        // Remove from promotion intent if was protected
+        _promotionIntentCoachIds.Remove(coachId);
 
         EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachHired, coachId, playerTeamId, (int)newRole);
         return (true, $"Promoted {coach.FullName} to Head Coach.");
@@ -439,7 +964,6 @@ public class StaffSystem
         {
             if (!IsRoleFilled(team, role))
             {
-                // Try to hire from market first
                 var candidate = _coachingMarket.FirstOrDefault(c => c.TeamId == null);
                 if (candidate != null)
                 {
@@ -448,7 +972,6 @@ public class StaffSystem
                 }
                 else
                 {
-                    // Generate a new coach
                     var newCoach = GenerateSingleCoach(role, rng);
                     _getCoaches().Add(newCoach);
                     HireCoachInternal(team, newCoach, role);
@@ -473,10 +996,9 @@ public class StaffSystem
 
         for (int i = 0; i < count; i++)
         {
-            // First few are HC-caliber (higher ratings)
-            bool isHCCaliberr = i < count / 3;
-            int minRating = isHCCaliberr ? 55 : 40;
-            int ratingRange = isHCCaliberr ? 35 : 45;
+            bool isHCCaliber = i < count / 3;
+            int minRating = isHCCaliber ? 55 : 40;
+            int ratingRange = isHCCaliber ? 35 : 45;
 
             var coach = new Coach
             {
@@ -484,7 +1006,7 @@ public class StaffSystem
                 FirstName = firstNames[rng.Next(firstNames.Length)],
                 LastName = lastNames[rng.Next(lastNames.Length)],
                 Age = 35 + rng.Next(25),
-                Role = isHCCaliberr ? CoachRole.HeadCoach : (CoachRole)(1 + rng.Next(10)),
+                Role = isHCCaliber ? CoachRole.HeadCoach : (CoachRole)(1 + rng.Next(10)),
                 TeamId = null,
                 OffenseRating = minRating + rng.Next(ratingRange),
                 DefenseRating = minRating + rng.Next(ratingRange),
@@ -497,7 +1019,7 @@ public class StaffSystem
                 PreferredOffense = (SchemeType)rng.Next(6),
                 PreferredDefense = (SchemeType)(6 + rng.Next(7)),
                 Personality = (CoachPersonality)rng.Next(5),
-                Prestige = isHCCaliberr ? 30 + rng.Next(50) : 10 + rng.Next(40),
+                Prestige = isHCCaliber ? 30 + rng.Next(50) : 10 + rng.Next(40),
                 Experience = rng.Next(25),
             };
             coaches.Add(coach);
@@ -537,12 +1059,21 @@ public class StaffSystem
 
     // --- Save/Load ---
 
-    public (List<string> MarketIds, object _) GetState()
+    public (List<string> MarketIds, List<InterviewRequest> Requests,
+        List<string> PromotionIntents, Dictionary<string, string> AIIntents) GetState()
     {
-        return (_coachingMarket.Select(c => c.Id).ToList(), null!);
+        return (
+            _coachingMarket.Select(c => c.Id).ToList(),
+            _interviewRequests,
+            _promotionIntentCoachIds.ToList(),
+            new Dictionary<string, string>(_aiPromotionIntents)
+        );
     }
 
-    public void SetState(List<string> marketIds)
+    public void SetState(List<string> marketIds,
+        List<InterviewRequest>? requests = null,
+        List<string>? promotionIntents = null,
+        Dictionary<string, string>? aiIntents = null)
     {
         _coachingMarket.Clear();
         var allCoaches = _getCoaches();
@@ -552,5 +1083,10 @@ public class StaffSystem
             if (coach != null)
                 _coachingMarket.Add(coach);
         }
+
+        _interviewRequests = requests ?? new List<InterviewRequest>();
+        _promotionIntentCoachIds = promotionIntents != null
+            ? new HashSet<string>(promotionIntents) : new HashSet<string>();
+        _aiPromotionIntents = aiIntents ?? new Dictionary<string, string>();
     }
 }

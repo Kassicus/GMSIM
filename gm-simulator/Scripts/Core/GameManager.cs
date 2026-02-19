@@ -73,6 +73,11 @@ public partial class GameManager : Node
     public List<PlayoffSeed> AFCPlayoffSeeds { get; private set; } = new();
     public List<PlayoffSeed> NFCPlayoffSeeds { get; private set; } = new();
 
+    // Coaching Market State
+    public HashSet<string> ActivePlayoffTeamIds { get; private set; } = new();
+    public bool IsCoachingMarketOpen { get; private set; }
+    public int CoachingMarketWeekNumber { get; private set; }
+
     public bool IsGameActive { get; private set; }
 
     public override void _Ready()
@@ -111,6 +116,9 @@ public partial class GameManager : Node
         RecentGameResults.Clear();
         AFCPlayoffSeeds.Clear();
         NFCPlayoffSeeds.Clear();
+        ActivePlayoffTeamIds.Clear();
+        IsCoachingMarketOpen = false;
+        CoachingMarketWeekNumber = 0;
 
         // Load data and generate league
         string dataPath = ProjectSettings.GlobalizePath("res://Resources/Data");
@@ -193,8 +201,14 @@ public partial class GameManager : Node
                 save.PendingTradeProposals, save.TradeRelationships);
 
         // Restore coaching market state
-        if (save.CoachingMarketIds.Count > 0)
-            Staff.SetState(save.CoachingMarketIds);
+        if (save.CoachingMarketIds.Count > 0 || save.InterviewRequests.Count > 0)
+            Staff.SetState(save.CoachingMarketIds, save.InterviewRequests,
+                save.PromotionIntentCoachIds, save.AIPromotionIntents);
+
+        // Restore coaching market window state
+        ActivePlayoffTeamIds = new HashSet<string>(save.ActivePlayoffTeamIds);
+        IsCoachingMarketOpen = save.IsCoachingMarketOpen;
+        CoachingMarketWeekNumber = save.CoachingMarketWeekNumber;
 
         // Restore progression & AI state
         AllAwards = save.AllAwards;
@@ -205,6 +219,7 @@ public partial class GameManager : Node
 
     public SaveData CreateSaveData(string saveName)
     {
+        var _staffState = Staff?.GetState() ?? (new List<string>(), new List<InterviewRequest>(), new List<string>(), new Dictionary<string, string>());
         return new SaveData
         {
             SaveName = saveName,
@@ -240,7 +255,13 @@ public partial class GameManager : Node
             TradeBlockPlayerIds = Trading?.GetState().Block ?? new List<string>(),
             PendingTradeProposals = Trading?.GetState().Pending ?? new List<TradeProposal>(),
             TradeRelationships = Trading?.GetState().Relationships ?? new Dictionary<string, float>(),
-            CoachingMarketIds = Staff?.GetState().MarketIds ?? new List<string>(),
+            CoachingMarketIds = _staffState.MarketIds,
+            InterviewRequests = _staffState.Requests,
+            PromotionIntentCoachIds = _staffState.PromotionIntents,
+            AIPromotionIntents = _staffState.AIIntents,
+            ActivePlayoffTeamIds = ActivePlayoffTeamIds.ToList(),
+            IsCoachingMarketOpen = IsCoachingMarketOpen,
+            CoachingMarketWeekNumber = CoachingMarketWeekNumber,
             AllAwards = AllAwards,
             RetiredPlayerIds = RetiredPlayerIds,
         };
@@ -272,6 +293,14 @@ public partial class GameManager : Node
             FreeAgencyWeekNumber++;
             FreeAgency.ProcessFreeAgencyWeek(FreeAgencyWeekNumber);
             EventBus.Instance?.EmitSignal(EventBus.SignalName.FreeAgencyWeekProcessed, FreeAgencyWeekNumber);
+        }
+
+        // Process coaching market weekly
+        if (IsCoachingMarketOpen)
+        {
+            CoachingMarketWeekNumber++;
+            Staff.ProcessCoachingMarketWeek(CoachingMarketWeekNumber);
+            EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachingMarketWeekProcessed, CoachingMarketWeekNumber);
         }
 
         // Simulate games for current week if in season
@@ -338,7 +367,7 @@ public partial class GameManager : Node
         switch (newPhase)
         {
             case GamePhase.PostSeason:
-                RunCoachingCarousel();
+                CloseCoachingMarket();
                 RunEndOfSeasonProcessing();
                 GenerateScoutMarket();
                 break;
@@ -377,6 +406,7 @@ public partial class GameManager : Node
                 break;
             case GamePhase.Playoffs:
                 SetupPlayoffBracket();
+                OpenCoachingMarket();
                 break;
             case GamePhase.SuperBowl:
                 SetupSuperBowl();
@@ -384,18 +414,68 @@ public partial class GameManager : Node
         }
     }
 
-    // --- Phase 7: Coaching Carousel ---
+    // --- Phase 7: Coaching Market Lifecycle ---
 
-    private void RunCoachingCarousel()
+    private void OpenCoachingMarket()
     {
-        // Only run after an actual season has been played, not on initial game start
+        // Only run after an actual season has been played
         if (SeasonHistory.Count == 0 && CurrentSeason.Games.Count == 0) return;
 
-        var changes = Staff.RunCoachingCarousel();
-        foreach (var change in changes)
-            GD.Print($"Coaching Carousel: {change}");
+        // Initialize ActivePlayoffTeamIds from current playoff seeds
+        ActivePlayoffTeamIds.Clear();
+        foreach (var seed in AFCPlayoffSeeds.Concat(NFCPlayoffSeeds))
+            ActivePlayoffTeamIds.Add(seed.TeamId);
 
+        IsCoachingMarketOpen = true;
+        CoachingMarketWeekNumber = 0;
+
+        // Fire underperforming AI HCs
+        var firings = Staff.FireUnderperformingHCs();
+        foreach (var change in firings)
+            GD.Print($"Coaching Market: {change}");
+
+        // Determine AI promotion intents
+        Staff.DetermineAIPromotionIntents();
+
+        // Generate free agent coaches for the market
+        Staff.GenerateAndAddMarketCoaches();
+
+        GD.Print($"Coaching market opened. {ActivePlayoffTeamIds.Count} playoff teams active.");
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachingMarketOpened, Calendar.CurrentYear);
+    }
+
+    private void CloseCoachingMarket()
+    {
+        if (!IsCoachingMarketOpen) return;
+
+        Staff.CloseMarketFillVacancies();
+
+        IsCoachingMarketOpen = false;
+        CoachingMarketWeekNumber = 0;
+        ActivePlayoffTeamIds.Clear();
+
+        EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachingMarketClosed, Calendar.CurrentYear);
         EventBus.Instance?.EmitSignal(EventBus.SignalName.CoachingCarouselCompleted, Calendar.CurrentYear);
+    }
+
+    private void UpdateActivePlayoffTeams()
+    {
+        var playoffGames = CurrentSeason.Games.Where(g => g.IsPlayoff && g.IsCompleted).ToList();
+
+        foreach (var game in playoffGames)
+        {
+            // Determine the loser
+            string? loserId = null;
+            if (game.HomeScore > game.AwayScore)
+                loserId = game.AwayTeamId;
+            else if (game.AwayScore > game.HomeScore)
+                loserId = game.HomeTeamId;
+
+            if (loserId != null && ActivePlayoffTeamIds.Remove(loserId))
+            {
+                GD.Print($"Coaching market: {GetTeam(loserId)?.FullName} eliminated — coaches now available for interviews");
+            }
+        }
     }
 
     // --- Phase 8: End of Season Processing ---
@@ -736,7 +816,10 @@ public partial class GameManager : Node
 
         // Check if a playoff round just completed
         if (Calendar.IsPlayoffs())
+        {
             CheckAndAdvancePlayoffRound();
+            UpdateActivePlayoffTeams();
+        }
     }
 
     private void ApplyPlayerStats(GameResult result)
@@ -1169,7 +1252,8 @@ public partial class GameManager : Node
             GetCoach,
             GetTeam,
             () => Calendar,
-            () => PlayerTeamId);
+            () => PlayerTeamId,
+            () => ActivePlayoffTeamIds);
 
         SimEngine = new SimulationEngine(
             () => Teams,

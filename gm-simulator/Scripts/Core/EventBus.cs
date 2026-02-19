@@ -47,6 +47,14 @@ public partial class EventBus : Node
     [Signal] public delegate void CoachFiredEventHandler(string coachId, string teamId);
     [Signal] public delegate void CoachingCarouselCompletedEventHandler(int year);
 
+    // Coaching Market
+    [Signal] public delegate void CoachingMarketOpenedEventHandler(int year);
+    [Signal] public delegate void CoachingMarketClosedEventHandler(int year);
+    [Signal] public delegate void InterviewRequestedEventHandler(string requestId, string coachId, string requestingTeamId);
+    [Signal] public delegate void InterviewBlockedEventHandler(string requestId, string coachId, string blockReason);
+    [Signal] public delegate void PlayerCoachTargetedEventHandler(string coachId, string requestingTeamId, int targetRole);
+    [Signal] public delegate void CoachingMarketWeekProcessedEventHandler(int weekNumber);
+
     // Progression & AI (Phase 8)
     [Signal] public delegate void ProgressionCompletedEventHandler(int year);
     [Signal] public delegate void AwardsCalculatedEventHandler(int year);

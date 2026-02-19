@@ -62,6 +62,14 @@ public class SaveData
     // Staff & Coaching State (Phase 7)
     public List<string> CoachingMarketIds { get; set; } = new();
 
+    // Coaching Market State
+    public List<InterviewRequest> InterviewRequests { get; set; } = new();
+    public List<string> ActivePlayoffTeamIds { get; set; } = new();
+    public bool IsCoachingMarketOpen { get; set; }
+    public int CoachingMarketWeekNumber { get; set; }
+    public List<string> PromotionIntentCoachIds { get; set; } = new();
+    public Dictionary<string, string> AIPromotionIntents { get; set; } = new();
+
     // Progression & AI State (Phase 8)
     public List<SeasonAwards> AllAwards { get; set; } = new();
     public List<string> RetiredPlayerIds { get; set; } = new();
